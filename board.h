@@ -1,0 +1,1 @@
+void initBoard(Property board[]);
