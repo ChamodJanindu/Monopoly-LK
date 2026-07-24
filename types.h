@@ -78,6 +78,8 @@ typedef struct {
     int houseCost;
     int hotelCost;
 
+    int taxAmount;
+
     int owner;             
     int isMortgaged;
     int isLoanLocked;
@@ -107,5 +109,11 @@ typedef struct {
 
     Loan loan;
 } Player;
+
+typedef struct {
+    int die1;
+    int die2;
+} DiceRoll;
+
 
 #endif
