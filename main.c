@@ -13,15 +13,20 @@ int main(void) {
 
     srand(time(NULL));
 
-    Player player1, player2;
+    Player players[NUM_PLAYERS];
     Property board[BOARD_SIZE];
 
 
     initBoard(board);
-    initPlayer(&player1, "Bob", STRATEGY_AGGRESSIVE);
-    initPlayer(&player2, "Alice", STRATEGY_CONSERVATIVE);
+    initPlayer(&players[0], "Alice", STRATEGY_AGGRESSIVE);
+    initPlayer(&players[1], "Bob", STRATEGY_CONSERVATIVE);
+    initPlayer(&players[2], "Chan", STRATEGY_RISK_TAKER);
+    initPlayer(&players[3], "Divya", STRATEGY_OPPORTUNISTIC);
+    int numPlayers = NUM_PLAYERS;
+    int numRounds = 20;
 
-    testing001(&player1, board);
+    testTurnRotation(players,numPlayers,board,numRounds);
+
     //handlelandingTest(testPositions, numTests, &player1, board);    
 
     //printBoard(board);

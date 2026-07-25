@@ -97,16 +97,20 @@ void handleLandingTest(int testPostions[], int numTests, Player *player, Propert
 
 }
 
-void testing001(Player *player, Property board[]){
+void testTurnRotation(Player players[], int numPlayers, Property board[], int numRounds) {
 
-    printf("--movePlayer + handleLanding + rollDice Testing--\n");
+    printf("--- Turn Rotation Test: %d players, %d rounds ---\n", numPlayers, numRounds);
 
-    for(int i = 0; i < 20; i++){
-        DiceRoll roll = rollDice();
-        int total = roll.die1 + roll.die2;
-        
-        movePlayer(player, total);
-        handleLanding(player, board);
+    for (int round = 1; round <= numRounds; round++) {
+        printf("\n=== Round %d ===\n", round);
+
+        for (int p = 0; p < numPlayers; p++) {
+            DiceRoll roll = rollDice();
+            int total = roll.die1 + roll.die2;
+
+            movePlayer(&players[p], total);
+            handleLanding(&players[p], board);
+        }
     }
-
 }
+

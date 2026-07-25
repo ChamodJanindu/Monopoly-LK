@@ -1,4 +1,6 @@
 #include "types.h"
+#include "players.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -33,7 +35,7 @@ void movePlayer(Player *player, int diceTotal){
 
     if(passedGo == 1){
         player->cash = player->cash + GO_MONEY;
-        printf("Player cash = %d", player->cash);
+        printf("Player cash = %d\n", player->cash);
     }
 
 }
