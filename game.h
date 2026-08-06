@@ -2,11 +2,15 @@
 #define GAME_H
 
 #include "types.h"
-#include "game.h"
 
-void handleLanding(Player *player, Property board[]);
-void handleLandingTest(int testPostions[], int numTests, Player *player, Property board[]);
+void determineTurnOrder(Player players[], int turnOrder[]);
+void handleLanding(Player players[], Player *player, int playerIndex, Property board[], int diceTotal);
+void handleLandingTest(Player players[],int testPostions[], int numTests, Player *player, Property board[]);
+void testTurnRotation(Player players[], int numPlayers, Property board[], int targetCompletedRounds, int turnOrder[], GameState *game);
+void handlePropertyPurchase(Player players[], int playerIndex, Property property[], int squareIndex);
+void initGameState(GameState *game);
+int assignPropertyToPlayer(Player players[], int playerIndex, Property board[], int squareIndex);
 
-void testTurnRotation(Player players[], int numPlayers, Property board[], int numRounds);
-
+int calculateCompletedRounds(Player players[], int numPlayers, int currentCompletedRounds);
+void updateCompletedRounds(GameState *game, Player players[], int numPlayers);
 #endif

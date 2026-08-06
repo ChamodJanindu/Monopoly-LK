@@ -3,6 +3,10 @@
 
 #define BOARD_SIZE 40
 #define NUM_PLAYERS 4
+
+#define MAX_PROPERTY_NAME_LENGTH 64
+#define MAX_PLAYER_NAME_LENGTH 20
+
 #define STARTING_CASH 30000
 #define GO_MONEY 2000
 #define MAX_ROUNDS 500
@@ -68,7 +72,8 @@ typedef struct {
 } Loan;
 
 typedef struct {
-    char name[30];
+    char name[MAX_PROPERTY_NAME_LENGTH];
+
     SquareType type;
     PropertyGroup group;
 
@@ -80,32 +85,36 @@ typedef struct {
 
     int taxAmount;
 
-    int owner;             
+    int owner;
     int isMortgaged;
     int isLoanLocked;
 
     int numHouses;
     int hasHotel;
 
-    int conditionRating;    
-    int age;                
-    int roundsNeglected;     
+    int conditionRating;
+    int age;
+    int roundsNeglected;
 
     Insurance insurance;
 } Property;
 
 typedef struct {
-    char name[20];
+    char name[MAX_PLAYER_NAME_LENGTH];
+
     PlayerStrategy strategy;
 
     int cash;
-    int position;           
+    int position;
     int isInJail;
     int jailTurnsRemaining;
     int isBankrupt;
 
     int ownedProperties[BOARD_SIZE];
     int numOwnedProperties;
+
+    int passedGoThisRound;
+    int lapCount;
 
     Loan loan;
 } Player;
@@ -114,6 +123,12 @@ typedef struct {
     int die1;
     int die2;
 } DiceRoll;
+
+typedef struct {
+    int completedRounds;
+    int gameOver;
+} GameState;
+
 
 
 #endif
