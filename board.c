@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "types.h"
 #include "board.h"
 
@@ -24,6 +25,7 @@ static void setPropertySquare(Property board[], int index, const char *name, Pro
     board[index].baseRent = baseRent;
     board[index].houseCost = houseCost;
     board[index].hotelCost = hotelCost;
+    board[index].marketValue = purchasePrice;
 
     board[index].owner = -1;
     board[index].conditionRating = 100;
@@ -34,8 +36,10 @@ static void setRailwaySquare(Property board[], int index, const char *name) {
     board[index].type = SQUARE_RAILWAY;
     board[index].group = GROUP_NONE;
     board[index].owner = -1;
-    board[index].purchasePrice = 2000;
-    board[index].mortgageValue = 1000;
+    board[index].purchasePrice = 1500;
+    board[index].marketValue = board[index].purchasePrice;
+    board[index].mortgageValue = 750;
+    
 }
 
 static void setUtilitySquare(Property board[], int index, const char *name) {
@@ -44,6 +48,7 @@ static void setUtilitySquare(Property board[], int index, const char *name) {
     board[index].group = GROUP_NONE;
     board[index].owner = -1;
     board[index].purchasePrice = 1500;
+    board[index].marketValue = board[index].purchasePrice;
     board[index].mortgageValue = 750;
 }
 

@@ -7,8 +7,9 @@
 #include "game.h"
 #include "finance.h"
 
-void handleLanding(Player players[], Player *player, int playerIndex, Property board[], int diceTotal){
+void handleLanding(Player players[], int playerIndex, Property board[], int diceTotal, int turnOrder[]){
 
+    Player *player = &players[playerIndex];
     int pos = player->position;
     Property *square = &board[pos];
 
@@ -30,7 +31,7 @@ void handleLanding(Player players[], Player *player, int playerIndex, Property b
             );       
             
             if(square->owner == -1){
-                handlePropertyPurchase(players, playerIndex, board, pos);
+                handlePropertyPurchase(players, playerIndex, board, pos, turnOrder);
             }
             else if(square->owner == playerIndex){
                 printf("Already owns this, nothing happens\n");
@@ -48,8 +49,13 @@ void handleLanding(Player players[], Player *player, int playerIndex, Property b
             break;
     
         case SQUARE_TAX:
-            printf("%s landed on Tax: %s (would pay %d - not yet implemented)\n",
-                   player->name, square->name, square->taxAmount);
+
+            printf("%s landed on Tax: %s.\n",
+                player->name,
+                square->name);
+
+            payTax(player, square);
+
             break;
 
         case SQUARE_JAIL:
@@ -66,8 +72,9 @@ void handleLanding(Player players[], Player *player, int playerIndex, Property b
             break;
 
         case SQUARE_GO_TO_JAIL:
-            printf("%s landed on Go To Jail (send-to-jail logic not yet implemented)\n",
+            printf("%s landed on Go To Jail\n",
                    player->name);
+            sendPlayerToJail(player);
             break;
 
         case SQUARE_BANK:
@@ -188,13 +195,13 @@ void initGameState(GameState *game){
     game->gameOver = 0;
 }
 
-void handleLandingTest(Player players[], int testPostions[], int numTests, Player *player, Property board[]){
+void handleLandingTest(Player players[], int testPostions[], int numTests, Player *player, Property board[], int turnOrder[]){
 
     printf("---Handle landing tests---\n");
 
     for(int i = 0; i < numTests; i++){
         player->position = testPostions[i];
-        handleLanding(players, player, 0, board, 0);
+        handleLanding(players, 0, board, 0, turnOrder);
     }
 
 }
@@ -215,7 +222,8 @@ void testTurnRotation(Player players[], int numPlayers, Property board[], int ta
             }
 
             if(player->isInJail  == 1){
-                printf("%s is in jail and skips movement\n",player->name);
+                
+                handleJailTurn(players, playerIndex, board, turnOrder); 
             
                 updateCompletedRounds(game, players, numPlayers);
                 
@@ -230,7 +238,7 @@ void testTurnRotation(Player players[], int numPlayers, Property board[], int ta
 
             movePlayer(player, total);
 
-            handleLanding(players, player, playerIndex, board, total);   
+            handleLanding(players, playerIndex, board, total, turnOrder);   
 
             updateCompletedRounds(game, players, numPlayers);
             
@@ -245,7 +253,7 @@ void testTurnRotation(Player players[], int numPlayers, Property board[], int ta
            game->completedRounds);
 }
 
-void handlePropertyPurchase(Player players[], int playerIndex, Property board[], int squareIndex){
+void handlePropertyPurchase(Player players[], int playerIndex, Property board[], int squareIndex, int turnOrder[]){
 
     Player *player = &players[playerIndex];
     Property *property = &board[squareIndex];
@@ -264,8 +272,9 @@ void handlePropertyPurchase(Player players[], int playerIndex, Property board[],
                 player->name, property->name, property->purchasePrice, player->cash);
     }
     else {
-        printf("%s declined to buy %s (cash: %d, price: %d)\n",
-               player->name, property->name, player->cash, property->purchasePrice);
+        printf("%s declined to buy %s (cash: %d, price: %d)\n", player->name, property->name, player->cash, property->purchasePrice);
+        
+        handleAuction(players, board, squareIndex, turnOrder);
     }
 
 }
@@ -289,6 +298,8 @@ int assignPropertyToPlayer(Player players[], int playerIndex, Property board[], 
 
     if (property->owner != -1) {
         printf("ERROR: %s already has an owner.\n", property->name);
+
+        return 0;
     }
 
     if(addPropertyToPlayer(player, squareIndex) == 0){
@@ -301,12 +312,7 @@ int assignPropertyToPlayer(Player players[], int playerIndex, Property board[], 
 }
 
 
-int calculateCompletedRounds(
-    Player players[],
-    int numPlayers,
-    int currentCompletedRounds
-)
-{
+int calculateCompletedRounds(Player players[], int numPlayers, int currentCompletedRounds){
     int minimumLapCount = -1;
 
     for (int i = 0; i < numPlayers; i++) {
@@ -339,13 +345,7 @@ int calculateCompletedRounds(
     return minimumLapCount;
 }
 
-void updateCompletedRounds(
-    GameState *game,
-    Player players[],
-    int numPlayers
-)
-
-{
+void updateCompletedRounds(GameState *game, Player players[], int numPlayers){
     int newCompletedRounds = calculateCompletedRounds(
         players,
         numPlayers,
@@ -375,4 +375,211 @@ void updateCompletedRounds(
          */
     }
 }
+
+void handleAuction(Player players[], Property board[], int squareIndex, int turnOrder[]){
+
+    if(squareIndex < 0 || squareIndex >= BOARD_SIZE){
+        printf("ERROR: Invalid auction square index %d.\n", squareIndex);
+        return;
+    } 
+
+    Property *property = &board[squareIndex];
+
+    if(property->type != SQUARE_PROPERTY && property->type != SQUARE_RAILWAY && property->type != SQUARE_UTILITY){
+        printf("ERROR: %s cannot be auctioned.\n", property->name);
+        return;
+    }
+
+    if(property->owner != -1){
+        printf("ERROR: %s already has an owner.\n", property->name);
+        return;
+    }
+
+    int openingBid = property->marketValue / 2;
+    int currentBid = openingBid - AUCTION_INCREMENT;
+    int highestBidder = -1;
+
+    int withdrawn[NUM_PLAYERS] = {0};
+    int activeBidders = 0;
+
+    for(int i = 0; i < NUM_PLAYERS; i++){
+
+        if(players[i].isBankrupt == 1){
+            withdrawn[i] = 1;
+        }
+        else{
+            activeBidders++;
+        }
+    }
+
+    if(activeBidders == 0){
+        printf("No solvent players are available for the auction.\n");
+        return;
+    }
+
+    printf("\nAuction started for %s.\n", property->name);
+    printf("Market value: LKR %d\n", property->marketValue);
+    printf("Opening bid: LKR %d\n", openingBid);
+    printf("Active bidders: %d\n", activeBidders);
+
+    printf("Current bid before first bid: LKR %d\n", currentBid);
+    printf("Highest bidder index: %d\n", highestBidder);
+
+    int auctionFinished = 0;
+
+    while(auctionFinished == 0){
+
+        for(int i = 0; i < NUM_PLAYERS; i++){
+
+            int playerIndex = turnOrder[i];
+
+            if(withdrawn[playerIndex] == 1){
+                continue;
+            }
+            
+            if(playerIndex == highestBidder){
+                continue;
+            }
+            
+            int nextBid = currentBid + AUCTION_INCREMENT;
+            int wantsToBid = decideAuctionBid(&players[playerIndex], property, nextBid);
+            
+            if(wantsToBid == 1){
+                currentBid = nextBid;
+                highestBidder = playerIndex;
+            
+                printf("%s bids LKR %d.\n", players[playerIndex].name, currentBid);
+            }
+             else{
+                withdrawn[playerIndex] = 1;
+                activeBidders--;
+
+                printf("%s withdraws from the auction.\n", players[playerIndex].name);
+            }
+            
+            if(activeBidders == 0){
+                auctionFinished = 1;
+                break;
+            }
+
+            if(activeBidders == 1 && highestBidder != -1){
+                auctionFinished = 1;
+                break;
+            }
+        }
+
+    }
+
+    if(highestBidder == -1){
+        printf("No bids were placed for %s.\n", property->name);
+        printf("%s remains owned by the bank.\n", property->name);
+        return;
+    }
+
+    if(players[highestBidder].cash < currentBid){
+        printf("ERROR: %s cannot afford the winning bid of LKR %d.\n", players[highestBidder].name, currentBid);
+        return;  
+    }
+
+    if(assignPropertyToPlayer(players, highestBidder, board, squareIndex) == 0){
+        printf("Auction ownership transfer failed! for %s. \n", property->name);
+        return;
+    }
+    
+    players[highestBidder].cash -= currentBid;
+    
+    printf("\n%s wins the auction for %s.\n", players[highestBidder].name, property->name);
+    printf("Winning bid: LKR %d\n", currentBid);
+    printf("%s remaining cash: LKR %d\n", players[highestBidder].name, players[highestBidder].cash);
+}
+
+void sendPlayerToJail(Player *player){
+
+    player->position = 10;
+    player->isInJail = 1;
+    player->jailTurnsRemaining = 3;
+
+    printf("%s was sent to Jail.\n", player->name);
+    printf("%s is now at position %d.\n", player->name, player->position);
+}
+
+
+void handleJailTurn(Player players[], int playerIndex, Property board[], int turnOrder[]){
+
+    Player *player = &players[playerIndex];
+    
+    printf("%s is currently in Jail.\n", player->name);
+    printf("Jail turns remaining: %d\n", player->jailTurnsRemaining);
+
+    if(decidePayBail(player) ==  1 && player->cash >= JAIL_BAIL){
+
+        player->cash -= JAIL_BAIL;
+        player->isInJail = 0;
+        player->jailTurnsRemaining = 0;
+
+        printf("%s paid LKR %d bail and left Jail.\n",
+               player->name,
+               JAIL_BAIL);
+
+        printf("Remaining cash: LKR %d\n", player->cash);
+
+        DiceRoll roll = rollDice();
+        int total = roll.die1 + roll.die2;
+
+        printf("%s rolled %d + %d = %d\n",
+               player->name,
+               roll.die1,
+               roll.die2,
+               total);
+
+        movePlayer(player, total);
+
+        handleLanding(players, playerIndex, board, total, turnOrder);
+
+        return;
+    }
+
+    DiceRoll roll = rollDice();
+    int total = roll.die1 + roll.die2;
+
+    if(isDoubles(roll)){
+
+        player->isInJail = 0;
+        player->jailTurnsRemaining = 0;
+
+        printf("%s rolled doubles and left Jail.\n",
+               player->name);
+
+
+        movePlayer(player, total);
+
+        handleLanding(players, playerIndex, board, total, turnOrder);
+
+        return;
+    }
+
+    player->jailTurnsRemaining--;
+
+    if(player->jailTurnsRemaining <= 0){
+
+        player->isInJail = 0;
+        player->jailTurnsRemaining = 0;
+
+        printf("%s has completed three turns in Jail and is released.\n",
+            player->name);
+
+        printf("%s will move normally on their next turn.\n",
+            player->name);
+
+        return;
+    }
+
+
+        printf("%s did not roll doubles and remains in Jail.\n",
+           player->name);
+
+        printf("Jail turns remaining: %d\n",
+           player->jailTurnsRemaining);
+}
+
 

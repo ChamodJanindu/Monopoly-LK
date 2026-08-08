@@ -56,7 +56,7 @@ void movePlayer(Player *player, int diceTotal){
     int rawNewPosition = oldPosition + diceTotal;
     int passedGo = (rawNewPosition >= BOARD_SIZE); 
         
-    player->position = rawNewPosition % 40;
+    player->position = rawNewPosition % BOARD_SIZE;
 
     printf("%s moved to position %d\n", player->name, player->position);
 
@@ -78,5 +78,32 @@ int decidePurchase(Player *player, Property *property){
     if(player->cash >= property->purchasePrice){
             return 1;
     }
+    return 0;
+}
+
+int decideAuctionBid(Player *player, Property *property, int nextBid){
+
+    if(player->isBankrupt == 1){
+        return 0;
+    }
+    if(player->cash < nextBid){
+        return 0;
+    }
+    
+    if(nextBid > property->marketValue){
+        return 0;
+    }
+
+    return 1;
+}
+
+int decidePayBail(Player *player){
+
+    if(player == NULL){
+        return 0;
+    }
+
+    // Temporary general decision.
+    // Strategy-specific behaviour will be implemented later.
     return 0;
 }

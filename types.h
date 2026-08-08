@@ -78,6 +78,7 @@ typedef struct {
     PropertyGroup group;
 
     int purchasePrice;
+    int marketValue;
     int mortgageValue;
     int baseRent;
     int houseCost;

@@ -5,5 +5,7 @@
 
 int calculateRent(Property board[], int squareIndex, int diceTotal);
 void payRent(Player players[], int playerIndex, Property board[], int squareIndex, int diceTotal);
+void payTax(Player *player, Property *taxSquare);
+
 
 #endif

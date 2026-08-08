@@ -148,3 +148,36 @@ void payRent(Player players[], int playerIndex, Property board[], int squareInde
         printf("This is partial/incomplete banking logic\n");
     }
 }
+
+void payTax(Player *player, Property *taxSquare){
+
+    int taxAmount = taxSquare->taxAmount;
+
+    if(player->cash >= taxAmount){
+
+        player->cash -= taxAmount;
+
+        printf("%s paid %s of LKR %d.\n",
+               player->name,
+               taxSquare->name,
+               taxAmount);
+
+        printf("Remaining cash: LKR %d\n", player->cash);
+    }
+
+    else{
+
+        int availableCash = player->cash;
+        int unpaidAmount = taxAmount - availableCash;
+
+        player->cash = 0;
+
+        printf("%s could not fully pay %s.\n",
+                player->name,
+                taxSquare->name);
+
+        printf("Paid available cash: LKR %d\n", availableCash);
+        printf("Unpaid amount: LKR %d\n", unpaidAmount);
+        printf("Debt recovery not yet implemented.\n");
+    }
+}
