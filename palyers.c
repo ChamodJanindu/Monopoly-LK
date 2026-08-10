@@ -107,3 +107,21 @@ int decidePayBail(Player *player){
     // Strategy-specific behaviour will be implemented later.
     return 0;
 }
+
+int decideBuildHouse(Player *player, Property *property){
+
+    if(player->cash < property->houseCost){
+        return 0;
+    }
+
+    return 1;
+}
+
+int decideBuildHotel(Player *player, Property *property){
+
+    if(player->cash < property->hotelCost){
+        return 0;
+    }
+
+    return 1;
+}

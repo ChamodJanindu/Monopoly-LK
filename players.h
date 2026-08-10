@@ -9,6 +9,7 @@ int decidePurchase(Player *player, Property *property);
 int addPropertyToPlayer(Player *player, int squareIndex);
 int decideAuctionBid(Player *player, Property *property, int nextBid);
 int decidePayBail(Player *player);
-
+int decideBuildHouse(Player *player, Property *property);
+int decideBuildHotel(Player *player, Property *property);
 
 #endif

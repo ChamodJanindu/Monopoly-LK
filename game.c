@@ -207,50 +207,26 @@ void handleLandingTest(Player players[], int testPostions[], int numTests, Playe
 }
 
 void testTurnRotation(Player players[], int numPlayers, Property board[], int targetCompletedRounds, int turnOrder[], GameState *game){
-    
-    printf("--- Turn Rotation Test: %d players, %d rounds ---\n", numPlayers, targetCompletedRounds);
+
+    printf("--- Turn Rotation Test: %d players, %d rounds ---\n",
+           numPlayers,
+           targetCompletedRounds);
 
     while(game->completedRounds < targetCompletedRounds){
 
-        for (int i = 0; i < numPlayers; i++) {
+        for(int i = 0; i < numPlayers; i++){
 
             int playerIndex = turnOrder[i];
-            Player *player = &players[playerIndex];
-            
-            if (player->isBankrupt == 1) {
-                continue;
-            }
 
-            if(player->isInJail  == 1){
-                
-                handleJailTurn(players, playerIndex, board, turnOrder); 
-            
-                updateCompletedRounds(game, players, numPlayers);
-                
-                continue;
-            }
-
-
-            DiceRoll roll = rollDice();
-            int total = roll.die1 + roll.die2;
-
-            printf("\n%s rolled %d + %d = %d\n", player->name, roll.die1, roll.die2, total);
-
-            movePlayer(player, total);
-
-            handleLanding(players, playerIndex, board, total, turnOrder);   
+            playTurn(players, playerIndex, board, turnOrder);
 
             updateCompletedRounds(game, players, numPlayers);
-            
-              if (game->completedRounds >= targetCompletedRounds) {
+
+            if(game->completedRounds >= targetCompletedRounds){
                 break;
-              }
+            }
         }
     }
-    
-    printf("\nTurn rotation test finished.\n");
-    printf("Completed global rounds: %d\n",
-           game->completedRounds);
 }
 
 void handlePropertyPurchase(Player players[], int playerIndex, Property board[], int squareIndex, int turnOrder[]){
@@ -504,7 +480,7 @@ void sendPlayerToJail(Player *player){
 }
 
 
-void handleJailTurn(Player players[], int playerIndex, Property board[], int turnOrder[]){
+int handleJailTurn(Player players[], int playerIndex, Property board[], int turnOrder[]){
 
     Player *player = &players[playerIndex];
     
@@ -536,7 +512,7 @@ void handleJailTurn(Player players[], int playerIndex, Property board[], int tur
 
         handleLanding(players, playerIndex, board, total, turnOrder);
 
-        return;
+        return 1;
     }
 
     DiceRoll roll = rollDice();
@@ -555,7 +531,7 @@ void handleJailTurn(Player players[], int playerIndex, Property board[], int tur
 
         handleLanding(players, playerIndex, board, total, turnOrder);
 
-        return;
+        return 1;
     }
 
     player->jailTurnsRemaining--;
@@ -571,7 +547,7 @@ void handleJailTurn(Player players[], int playerIndex, Property board[], int tur
         printf("%s will move normally on their next turn.\n",
             player->name);
 
-        return;
+        return 2;
     }
 
 
@@ -580,6 +556,290 @@ void handleJailTurn(Player players[], int playerIndex, Property board[], int tur
 
         printf("Jail turns remaining: %d\n",
            player->jailTurnsRemaining);
+
+        return 0;
 }
 
 
+int ownsCompleteGroup(Property board[], int playerIndex, PropertyGroup group){
+
+    int groupPropertyCount = 0;
+    int ownedPropertyCount = 0;
+
+    for(int i = 0; i < BOARD_SIZE; i++){
+
+        if(board[i].type == SQUARE_PROPERTY && board[i].group == group){
+
+            groupPropertyCount++;
+
+            if(board[i].owner == playerIndex){
+
+                ownedPropertyCount++;
+            }
+        }
+    }
+
+    if(groupPropertyCount > 0 && ownedPropertyCount == groupPropertyCount){
+        return 1;
+    }
+
+    return 0;
+}
+
+static int getDevelopmentLevel(Property *property){
+
+    if(property->hasHotel == 1){
+        return 5;
+    }
+
+    return property->numHouses;
+}
+
+int canBuildHouse(Property board[], int playerIndex, int squareIndex){
+
+    if(squareIndex < 0 || squareIndex >= BOARD_SIZE){
+        return 0;
+    }
+
+    Property *property = &board[squareIndex];
+
+    if(property->type != SQUARE_PROPERTY){
+        return 0;
+    }
+
+    if(property->owner != playerIndex){
+        return 0;
+    }
+
+    if(ownsCompleteGroup(board, playerIndex, property->group) == 0){
+        return 0;
+    }
+
+    if(property->hasHotel == 1){
+        return 0;
+    }
+
+    if(property->numHouses >=4){
+        return 0;
+    }
+
+    int propertyLevel = getDevelopmentLevel(property);
+
+    for(int i = 0; i < BOARD_SIZE; i++){
+
+        if(board[i].type == SQUARE_PROPERTY && 
+            board[i].group == property->group){
+                
+                int otherPropertyLevel = getDevelopmentLevel(&board[i]);
+                
+                if(otherPropertyLevel < propertyLevel){
+                    return 0;
+                }
+            }
+    }
+
+    return 1;
+}
+
+int buildHouse(Player players[], int playerIndex, Property board[], int squareIndex){
+
+    if(canBuildHouse(board, playerIndex, squareIndex) == 0){
+        return 0;
+    }
+
+    Player *player = &players[playerIndex];
+    Property *property = &board[squareIndex];
+
+    if(player->cash < property->houseCost){
+
+        printf("%s does not have enough cash to build a house on %s.\n",
+            player->name,
+            property->name);
+        
+        return 0;
+    }
+
+    player->cash -= property->houseCost;
+    property->numHouses++;
+
+    printf("%s built a house on %s for LKR %d.\n",
+        player->name,
+        property->name,
+        property->houseCost);
+
+    printf("Houses on %s: %d\n",
+           property->name,
+           property->numHouses);
+
+    printf("Remaining cash: LKR %d\n",
+           player->cash);
+
+    return 1;
+
+}
+
+int canBuildHotel(Property board[], int playerIndex, int squareIndex){
+
+    if(squareIndex < 0 || squareIndex >= BOARD_SIZE){
+        return 0;
+    }
+
+    Property *property = &board[squareIndex];
+
+    if(property->type != SQUARE_PROPERTY){
+        return 0;
+    }
+
+    if(property->owner != playerIndex){
+        return 0;
+    }
+
+    if(ownsCompleteGroup(board, playerIndex, property->group) == 0){
+        return 0;
+    }
+
+    if(property->hasHotel == 1){
+        return 0;
+    }
+
+    if(property->numHouses != 4){
+        return 0;
+    }
+
+    int propertyLevel = getDevelopmentLevel(property);
+
+    for(int i = 0; i < BOARD_SIZE; i++){
+
+        if(board[i].type == SQUARE_PROPERTY &&
+           board[i].group == property->group){
+
+            int otherPropertyLevel = getDevelopmentLevel(&board[i]);
+
+            if(otherPropertyLevel < propertyLevel){
+                return 0;
+            }
+        }
+    }
+
+    return 1;
+}
+
+
+int buildHotel(Player players[], int playerIndex, Property board[], int squareIndex){
+
+    if(canBuildHotel(board, playerIndex, squareIndex) == 0){
+            return 0;
+        }
+
+    Player *player = &players[playerIndex];
+    Property *property = &board[squareIndex];
+    
+    if(player->cash < property->houseCost){
+
+        printf("%s does not have enough cash to build a hotel on %s.\n",
+               player->name,
+               property->name);
+
+        return 0;
+    }
+
+    player->cash -= property->hotelCost;
+
+    property->numHouses = 0;
+    property->hasHotel = 1;
+
+    printf("%s built a hotel on %s for LKR %d.\n",
+           player->name,
+           property->name,
+           property->hotelCost);
+
+    printf("Hotel on %s: YES\n",
+           property->name);
+
+    printf("Remaining cash: LKR %d\n",
+           player->cash);
+
+    return 1;
+
+}
+
+void handleConstructionPhase(Player players[], int playerIndex, Property board[]){
+
+    Player *player = &players[playerIndex];
+
+    for(int i = 0; i < player->numOwnedProperties; i++){
+
+        int squareIndex = player->ownedProperties[i];
+        Property *property =  &board[squareIndex];
+        
+        if(buildHotel(players, playerIndex, board, squareIndex) == 1){
+
+            if(decideBuildHotel(player, property) == 1){
+
+                buildHotel(players, playerIndex, board, squareIndex);
+
+                continue;
+            }
+        }
+    
+          if(canBuildHouse(board, playerIndex, squareIndex) == 1){
+
+            if(decideBuildHouse(player, property) == 1){
+                
+                buildHouse(players, playerIndex, board, squareIndex);
+            }
+        }
+    }
+}
+
+void playTurn(Player players[], int playerIndex, Property board[], int turnOrder[]){
+
+    Player *player = &players[playerIndex];
+
+    printf("\n---------------------------------------------\n");
+    printf("%s's TURN\n", player->name);
+    printf("---------------------------------------------\n");
+
+    if(player->isBankrupt == 1){
+
+        printf("%s is bankrupt and cannot take a turn.\n",
+               player->name);
+
+        return;
+    }
+
+    if(player->isInJail == 1){
+
+        int jailResult = handleJailTurn(players, playerIndex, board, turnOrder);
+
+        if(jailResult == 0){
+            return;
+        }
+        if(jailResult == 2){
+            return;
+        }
+
+
+        if(player->isInJail == 0){
+            handleConstructionPhase(players, playerIndex, board);
+        }
+
+        return;
+    }
+
+    DiceRoll roll = rollDice();
+
+    int total = roll.die1 + roll.die2;
+
+    printf("%s rolled %d + %d = %d\n",
+           player->name,
+           roll.die1,
+           roll.die2,
+           total);
+
+    movePlayer(player, total);
+
+    handleLanding(players, playerIndex, board, total, turnOrder);
+
+    handleConstructionPhase(players, playerIndex, board);
+}
