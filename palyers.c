@@ -1,6 +1,7 @@
 #include "types.h"
 #include "players.h"
 #include"board.h"
+#include "finance.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -32,6 +33,7 @@ void initPlayer(Player *player, const char *name, PlayerStrategy strategy){
 
     player->loan.isActive = 0;
     player->loan.amount = 0;
+    player->loan.principalAmount = 0;
     player->loan.interestRate = 0;
     player->loan.roundsRemaining = 0;
     player->loan.numCollateral = 0;
@@ -108,6 +110,7 @@ int decidePayBail(Player *player){
     return 0;
 }
 
+
 int decideBuildHouse(Player *player, Property *property){
 
     if(player->cash < property->houseCost){
@@ -124,4 +127,82 @@ int decideBuildHotel(Player *player, Property *property){
     }
 
     return 1;
+}
+
+
+BankAction decideBankAction(Player *player){
+
+    if(player->loan.isActive == 0){
+        return BANK_ACTION_TAKE_LOAN;
+    }
+
+    return BANK_ACTION_REPAY_PART;
+}
+
+int decideLoanAmount(Player *player, Property board[]){
+
+    int maximumLoan = calculateMaximumLoan(player, board);
+
+    return maximumLoan;
+}
+
+int decidePartialRepaymentAmount(Player *player){
+
+    if(player->loan.isActive == 0){
+        return 0;
+    }
+
+    int repaymentAmount =
+        player->loan.amount / 2;
+
+    if(repaymentAmount > player->cash){
+        repaymentAmount = player->cash;
+    }
+
+    if(repaymentAmount >= player->loan.amount){
+        return 0;
+    }
+
+    return repaymentAmount;
+}
+
+int decideLoanIncreaseAmount(Player *player, Property board[]){
+
+    int totalMortgageValue = 0;
+
+    for(int i = 0; i < player->numOwnedProperties; i++){
+
+        int squareIndex =
+            player->ownedProperties[i];
+
+        Property *property =
+            &board[squareIndex];
+
+        if(property->type != SQUARE_PROPERTY &&
+           property->type != SQUARE_RAILWAY &&
+           property->type != SQUARE_UTILITY){
+
+            continue;
+        }
+
+        if(property->isMortgaged == 1){
+            continue;
+        }
+
+        totalMortgageValue +=
+            property->mortgageValue;
+    }
+
+    int maximumPrincipal =
+        totalMortgageValue * 75 / 100;
+
+    int availableIncrease =
+        maximumPrincipal -
+        player->loan.principalAmount;
+
+    if(availableIncrease <= 0){
+        return 0;
+    }
+
+    return availableIncrease;
 }

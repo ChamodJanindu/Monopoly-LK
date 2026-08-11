@@ -4,9 +4,10 @@
 #include "types.h"
 
 void determineTurnOrder(Player players[], int turnOrder[]);
-void handleLanding(Player players[], int playerIndex, Property board[], int diceTotal, int turnOrder[]);
-void handleLandingTest(Player players[],int testPostions[], int numTests, Player *player, Property board[], int turnOrder[]);
-void playTurn(Player players[], int playerIndex, Property board[], int turnOrder[]);
+
+void handleLanding(Player players[], int playerIndex, Property board[], int diceTotal, int turnOrder[], GameState *game);
+void playTurn(Player players[], int playerIndex, Property board[], int turnOrder[], GameState *game);
+int handleJailTurn(Player players[], int playerIndex, Property board[], int turnOrder[], GameState *game);
 void testTurnRotation(Player players[], int numPlayers, Property board[], int targetCompletedRounds, int turnOrder[], GameState *game);
 
 void handlePropertyPurchase(Player players[], int playerIndex, Property property[], int squareIndex, int turnOrder[]);
@@ -19,7 +20,6 @@ void updateCompletedRounds(GameState *game, Player players[], int numPlayers);
 void handleAuction(Player players[], Property board[], int squareIndex, int turnOrder[]);
 
 void sendPlayerToJail(Player *player);
-int handleJailTurn(Player players[], int playerIndex, Property board[], int turnOrder[]);
 
 int ownsCompleteGroup(Property board[], int playerIndex, PropertyGroup group);
 int canBuildHouse(Property board[], int playerIndex, int squareIndex);

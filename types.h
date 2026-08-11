@@ -49,6 +49,15 @@ typedef enum {
 } PlayerStrategy;
 
 typedef enum {
+    BANK_ACTION_NONE,
+    BANK_ACTION_TAKE_LOAN,
+    BANK_ACTION_REPAY_PART,
+    BANK_ACTION_REPAY_FULL,
+    BANK_ACTION_EXTEND,
+    BANK_ACTION_INCREASE
+} BankAction;
+
+typedef enum {
     POLICY_NONE, 
     POLICY_BASIC, 
     POLICY_COMPREHENSIVE, 
@@ -65,6 +74,7 @@ typedef struct{
 typedef struct {
     int isActive;
     int amount;
+    int principalAmount;
     int interestRate;     
     int roundsRemaining;
     int collateralIndices[BOARD_SIZE]; 
@@ -128,6 +138,7 @@ typedef struct {
 typedef struct {
     int completedRounds;
     int gameOver;
+    int currentLoanInterestRate;
 } GameState;
 
 

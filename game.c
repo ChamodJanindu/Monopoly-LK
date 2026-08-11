@@ -7,7 +7,7 @@
 #include "game.h"
 #include "finance.h"
 
-void handleLanding(Player players[], int playerIndex, Property board[], int diceTotal, int turnOrder[]){
+void handleLanding(Player players[], int playerIndex, Property board[], int diceTotal, int turnOrder[], GameState *game){
 
     Player *player = &players[playerIndex];
     int pos = player->position;
@@ -78,8 +78,8 @@ void handleLanding(Player players[], int playerIndex, Property board[], int dice
             break;
 
         case SQUARE_BANK:
-            printf("%s landed on Bank of Ceylon: %s (loan logic not yet implemented)\n",
-                   player->name, square->name);
+            
+            handleBank(players, playerIndex, board, game);
             break;
 
         default:
@@ -193,17 +193,8 @@ void determineTurnOrder(Player players[], int turnOrder[]){
 void initGameState(GameState *game){
     game->completedRounds = 0;
     game->gameOver = 0;
-}
 
-void handleLandingTest(Player players[], int testPostions[], int numTests, Player *player, Property board[], int turnOrder[]){
-
-    printf("---Handle landing tests---\n");
-
-    for(int i = 0; i < numTests; i++){
-        player->position = testPostions[i];
-        handleLanding(players, 0, board, 0, turnOrder);
-    }
-
+    game->currentLoanInterestRate = 8;
 }
 
 void testTurnRotation(Player players[], int numPlayers, Property board[], int targetCompletedRounds, int turnOrder[], GameState *game){
@@ -218,7 +209,7 @@ void testTurnRotation(Player players[], int numPlayers, Property board[], int ta
 
             int playerIndex = turnOrder[i];
 
-            playTurn(players, playerIndex, board, turnOrder);
+            playTurn(players, playerIndex, board, turnOrder, game);
 
             updateCompletedRounds(game, players, numPlayers);
 
@@ -227,6 +218,89 @@ void testTurnRotation(Player players[], int numPlayers, Property board[], int ta
             }
         }
     }
+}
+
+void playTurn(Player players[], int playerIndex, Property board[], int turnOrder[], GameState *game){
+
+    Player *player = &players[playerIndex];
+
+    int lapsBefore = player->lapCount;
+
+    printf("\n---------------------------------------------\n");
+    printf("%s's TURN\n", player->name);
+    printf("---------------------------------------------\n");
+
+    if(player->isBankrupt == 1){
+
+        printf("%s is bankrupt and cannot take a turn.\n",
+               player->name);
+
+        return;
+    }
+
+    if(player->isInJail == 1){
+
+        int jailResult = handleJailTurn(players, playerIndex, board, turnOrder, game);
+
+        if(jailResult == 0){
+            return;
+        }
+
+        if(jailResult == 2){
+            return;
+        }
+
+        if(player->lapCount > lapsBefore){
+
+            updateLoanAfterRound(player);
+
+            if(player->loan.isActive == 1 && player->loan.roundsRemaining <= 0){
+
+                handleLoanDefault(players, playerIndex, board, turnOrder);
+            }
+        }
+
+        if(player->isInJail == 0 && player->isBankrupt == 0){
+
+            handleConstructionPhase(players, playerIndex, board);
+        }
+
+        return;
+        
+    }
+
+    DiceRoll roll = rollDice();
+
+    int total = roll.die1 + roll.die2;
+
+    printf("%s rolled %d + %d = %d\n",
+           player->name,
+           roll.die1,
+           roll.die2,
+           total);
+
+    movePlayer(player, total);
+
+    handleLanding(players, playerIndex, board, total, turnOrder, game);
+
+    //Player based things that needs to get updated based on individual rounds
+    if(player->lapCount > lapsBefore){
+        
+        updateLoanAfterRound(player);
+
+        if(player->loan.isActive == 1 && player->loan.roundsRemaining <= 0){
+
+             handleLoanDefault(players, playerIndex, board, turnOrder);
+        }
+    }
+
+    //if player gets send to jail during this turn
+    if(player->isInJail == 1){
+        return;
+    } 
+
+
+    handleConstructionPhase(players, playerIndex, board);
 }
 
 void handlePropertyPurchase(Player players[], int playerIndex, Property board[], int squareIndex, int turnOrder[]){
@@ -361,6 +435,14 @@ void handleAuction(Player players[], Property board[], int squareIndex, int turn
 
     Property *property = &board[squareIndex];
 
+    if(property->isLoanLocked == 1){
+
+    printf("%s is Loan Locked and cannot be auctioned.\n",
+           property->name);
+
+    return;
+    }
+
     if(property->type != SQUARE_PROPERTY && property->type != SQUARE_RAILWAY && property->type != SQUARE_UTILITY){
         printf("ERROR: %s cannot be auctioned.\n", property->name);
         return;
@@ -480,7 +562,7 @@ void sendPlayerToJail(Player *player){
 }
 
 
-int handleJailTurn(Player players[], int playerIndex, Property board[], int turnOrder[]){
+int handleJailTurn(Player players[], int playerIndex, Property board[], int turnOrder[], GameState *game){
 
     Player *player = &players[playerIndex];
     
@@ -510,7 +592,7 @@ int handleJailTurn(Player players[], int playerIndex, Property board[], int turn
 
         movePlayer(player, total);
 
-        handleLanding(players, playerIndex, board, total, turnOrder);
+        handleLanding(players, playerIndex, board, total, turnOrder, game);
 
         return 1;
     }
@@ -529,7 +611,7 @@ int handleJailTurn(Player players[], int playerIndex, Property board[], int turn
 
         movePlayer(player, total);
 
-        handleLanding(players, playerIndex, board, total, turnOrder);
+        handleLanding(players, playerIndex, board, total, turnOrder, game);
 
         return 1;
     }
@@ -734,7 +816,7 @@ int buildHotel(Player players[], int playerIndex, Property board[], int squareIn
     Player *player = &players[playerIndex];
     Property *property = &board[squareIndex];
     
-    if(player->cash < property->houseCost){
+    if(player->cash < property->hotelCost){
 
         printf("%s does not have enough cash to build a hotel on %s.\n",
                player->name,
@@ -772,7 +854,7 @@ void handleConstructionPhase(Player players[], int playerIndex, Property board[]
         int squareIndex = player->ownedProperties[i];
         Property *property =  &board[squareIndex];
         
-        if(buildHotel(players, playerIndex, board, squareIndex) == 1){
+        if(canBuildHotel(board, playerIndex, squareIndex) == 1){
 
             if(decideBuildHotel(player, property) == 1){
 
@@ -792,54 +874,3 @@ void handleConstructionPhase(Player players[], int playerIndex, Property board[]
     }
 }
 
-void playTurn(Player players[], int playerIndex, Property board[], int turnOrder[]){
-
-    Player *player = &players[playerIndex];
-
-    printf("\n---------------------------------------------\n");
-    printf("%s's TURN\n", player->name);
-    printf("---------------------------------------------\n");
-
-    if(player->isBankrupt == 1){
-
-        printf("%s is bankrupt and cannot take a turn.\n",
-               player->name);
-
-        return;
-    }
-
-    if(player->isInJail == 1){
-
-        int jailResult = handleJailTurn(players, playerIndex, board, turnOrder);
-
-        if(jailResult == 0){
-            return;
-        }
-        if(jailResult == 2){
-            return;
-        }
-
-
-        if(player->isInJail == 0){
-            handleConstructionPhase(players, playerIndex, board);
-        }
-
-        return;
-    }
-
-    DiceRoll roll = rollDice();
-
-    int total = roll.die1 + roll.die2;
-
-    printf("%s rolled %d + %d = %d\n",
-           player->name,
-           roll.die1,
-           roll.die2,
-           total);
-
-    movePlayer(player, total);
-
-    handleLanding(players, playerIndex, board, total, turnOrder);
-
-    handleConstructionPhase(players, playerIndex, board);
-}
