@@ -33,9 +33,18 @@ void handleLanding(Player players[], int playerIndex, Property board[], int dice
             if(square->owner == -1){
                 handlePropertyPurchase(players, playerIndex, board, pos, turnOrder);
             }
+
             else if(square->owner == playerIndex){
-                printf("Already owns this, nothing happens\n");
+
+                printf("%s landed on their own property.\n",
+                    player->name);
+
+                if(decidePropertyRenovation(player, square) == 1){
+
+                    renovateProperty(players, playerIndex, board, pos);
+                }
             }
+
             else {
                 payRent(players, playerIndex, board, pos, diceTotal);
             }
@@ -243,6 +252,9 @@ void playTurn(Player players[], int playerIndex, Property board[], int turnOrder
         return;
     }
 
+    //why before 'is in jail?' - jailed players should still be able to maintain property.
+    handleMaintenancePhase(players, playerIndex, board);
+
     if(player->isInJail == 1){
 
         int jailResult = handleJailTurn(players, playerIndex, board, turnOrder, game);
@@ -327,6 +339,11 @@ void updateCompletedRounds(GameState *game, Player players[], int numPlayers, Pr
 
         updateInsuranceAfterRound(players, board, game);
         checkAutomaticRepairs(players, board);
+
+        updatePropertyAges(board);
+        updatePropertyDepreciation(board);
+        updateBuildingConditions(board);           
+
         /*
          * Later, end-of-round systems will run here:
          *
@@ -750,6 +767,13 @@ int buildHouse(Player players[], int playerIndex, Property board[], int squareIn
     }
 
     player->cash -= property->houseCost;
+
+    int newHouseIndex = property->numHouses;
+
+    property->houses[newHouseIndex].conditionRating = 100;
+    property->houses[newHouseIndex].roundsNeglected = 0;
+    property->houses[newHouseIndex].isStructurallyDamaged = 0;
+
     property->numHouses++;
 
     printf("%s built a house on %s for LKR %d.\n",
@@ -814,7 +838,6 @@ int canBuildHotel(Property board[], int playerIndex, int squareIndex){
     return 1;
 }
 
-
 int buildHotel(Player players[], int playerIndex, Property board[], int squareIndex){
 
     if(canBuildHotel(board, playerIndex, squareIndex) == 0){
@@ -837,6 +860,18 @@ int buildHotel(Player players[], int playerIndex, Property board[], int squareIn
 
     property->numHouses = 0;
     property->hasHotel = 1;
+
+    //when houses are replaced by a hotel the condition rating should go back to full cause its literally a new structure.
+    property->hotel.conditionRating = 100;
+    property->hotel.roundsNeglected = 0;
+    property->hotel.isStructurallyDamaged = 0;
+
+    for(int i = 0; i < 4; i++){
+
+        property->houses[i].conditionRating = 100;
+        property->houses[i].roundsNeglected = 0;
+        property->houses[i].isStructurallyDamaged = 0;
+    }   
 
     printf("%s built a hotel on %s for LKR %d.\n",
            player->name,
@@ -882,3 +917,47 @@ void handleConstructionPhase(Player players[], int playerIndex, Property board[]
     }
 }
 
+void handleMaintenancePhase(Player players[], int playerIndex, Property board[]){
+
+    Player *player = &players[playerIndex];
+
+    for(int i = 0; i < player->numOwnedProperties; i++){
+
+        int squareIndex = player->ownedProperties[i];
+        Property *property = &board[squareIndex];
+
+        if(property->type != SQUARE_PROPERTY){
+            continue;
+        }
+
+        if(property->hasHotel == 1){
+
+            BuildingCondition *hotel = &property->hotel;
+
+            if(decideStructuralRenovation(player, hotel) == 1){
+
+                renovateHotelStructuralDamage(player, property);
+            }
+            else if(decideMaintainBuilding(player, hotel) == 1){
+
+                maintainHotel(player, property);
+            }
+
+            continue;
+        }
+
+        for(int j = 0; j < property->numHouses; j++){
+
+            BuildingCondition *house = &property->houses[j];
+
+            if(decideStructuralRenovation(player, house) == 1){
+
+                renovateHouseStructuralDamage(player, property, j);
+            }
+            else if(decideMaintainBuilding(player, house) == 1){
+
+                maintainHouse(player, property, j);
+            }
+        }
+    }
+}

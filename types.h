@@ -100,6 +100,12 @@ typedef struct {
     int numCollateral;
 } Loan;
 
+typedef struct{
+    int conditionRating;
+    int roundsNeglected;
+    int isStructurallyDamaged;
+} BuildingCondition;
+
 typedef struct {
     char name[MAX_PROPERTY_NAME_LENGTH];
 
@@ -122,13 +128,17 @@ typedef struct {
     int numHouses;
     int hasHotel;
 
-    int conditionRating;
     int age;
-    int roundsNeglected;
+
+    BuildingCondition houses[4];
+    BuildingCondition hotel;
+    
+    int depreciationPercent;
+    int structuralDamageValueLoss;
+
     int isDamaged;
     DisasterType damageType;
     int repairCost;
-
 
     Insurance insurance;
 } Property;

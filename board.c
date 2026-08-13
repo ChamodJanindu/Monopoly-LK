@@ -39,9 +39,22 @@ static void setPropertySquare(Property board[], int index, const char *name, Pro
     board[index].numHouses = 0;
     board[index].hasHotel = 0;
 
-    board[index].conditionRating = 100;
+
     board[index].age = 0;
-    board[index].roundsNeglected = 0;
+    board[index].depreciationPercent = 0;
+
+    for(int i = 0; i < 4; i++){
+
+        board[index].houses[i].conditionRating = 100;
+        board[index].houses[i].roundsNeglected = 0;
+        board[index].houses[i].isStructurallyDamaged = 0;
+    }
+
+    board[index].hotel.conditionRating = 100;
+    board[index].hotel.roundsNeglected = 0;
+    board[index].hotel.isStructurallyDamaged = 0;
+
+    board[index].structuralDamageValueLoss = 0;
 
     board[index].isDamaged = 0;
     board[index].damageType = DISASTER_NONE;

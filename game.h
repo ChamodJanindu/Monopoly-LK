@@ -28,6 +28,7 @@ int canBuildHotel(Property board[], int playerIndex, int squareIndex);
 int buildHotel(Player players[], int playerIndex, Property board[], int squareIndex);
 void handleConstructionPhase(Player players[], int playerIndex, Property board[]);
 
+void handleMaintenancePhase(Player players[], int playerIndex, Property board[]);
 
 
 #endif

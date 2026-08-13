@@ -233,3 +233,37 @@ InsurancePolicyType decideInsurancePolicy(Player *player, Property *property){
 
     return POLICY_BASIC;
 }
+
+
+int decideMaintainBuilding(Player *player, BuildingCondition *building){
+
+    (void)player;
+
+    if(building->conditionRating < 90){
+        return 1;
+    }
+
+    return 0;
+}
+
+int decideStructuralRenovation(Player *player, BuildingCondition *building){
+
+    (void)player;
+
+    if(building->isStructurallyDamaged == 1){
+        return 1;
+    }
+
+    return 0;
+}
+
+int decidePropertyRenovation(Player *player, Property *property){
+
+    (void)player;
+
+    if(property->depreciationPercent >= 10){
+        return 1;
+    }
+
+    return 0;
+}

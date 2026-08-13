@@ -7,8 +7,8 @@
 #include "finance.h"
 
 int calculateRent(Property board[], int squareIndex, int diceTotal){
-    //this function will only be called by owned by other section in handleLanding function. therfore no need for a isowned? check.
-    
+
+    // This function is only called when the property is owned by another player.
     Property *property = &board[squareIndex];
 
     if(property->isDamaged == 1){
@@ -18,104 +18,130 @@ int calculateRent(Property board[], int squareIndex, int diceTotal){
     int multiplier = 1;
     int rent = 0;
 
-    //if the property is mortgaged no need for a rent calculation
     if(property->isMortgaged == 0){
-        
-        //rent calculation for properties
-        if(property->type == SQUARE_PROPERTY) {
-        
+
+        // Normal properties
+        if(property->type == SQUARE_PROPERTY){
+
             if(property->hasHotel == 1){
                 multiplier = 10;
             }
             else{
-                switch (property->numHouses)
-                {
-                case 0:
-                    multiplier = 1;
-                    break;
-                case 1:
-                    multiplier = 2;
-                    break;
-                case 2:
-                    multiplier = 3;
-                    break;
-                case 3:
-                    multiplier = 5;
-                    break;
-                case 4:
-                    multiplier = 7;
-                    break;
-                default:
-                    printf("WARNING: invalid numHouses value %d for %s\n", property->numHouses, property->name);
-                    multiplier = 1;
-                    break;      
-                }
 
+                switch(property->numHouses){
+
+                    case 0:
+                        multiplier = 1;
+                        break;
+
+                    case 1:
+                        multiplier = 2;
+                        break;
+
+                    case 2:
+                        multiplier = 3;
+                        break;
+
+                    case 3:
+                        multiplier = 5;
+                        break;
+
+                    case 4:
+                        multiplier = 7;
+                        break;
+
+                    default:
+                        printf("WARNING: invalid numHouses value %d for %s\n",
+                               property->numHouses,
+                               property->name);
+                        multiplier = 1;
+                        break;
+                }
             }
 
             rent = property->baseRent * multiplier;
-        
-            if (property->conditionRating >= 90) {
-                rent = (rent * 100) / 100;
-            } 
-            else if (property->conditionRating >= 75) {
-                rent = (rent * 90) / 100;
-            } 
-            else if (property->conditionRating >= 50) {
-                rent = (rent * 75) / 100;
-            } 
-            else if (property->conditionRating >= 25) {
-                rent = (rent * 50) / 100;
-            } 
-            else {
-                rent = 0;
+
+            if(property->numHouses > 0 || property->hasHotel == 1){
+
+                int averageCondition =
+                    calculateAverageBuildingCondition(property);
+
+                if(averageCondition >= 90){
+                    rent = rent;
+                }
+                else if(averageCondition >= 75){
+                    rent = rent * 90 / 100;
+                }
+                else if(averageCondition >= 50){
+                    rent = rent * 75 / 100;
+                }
+                else if(averageCondition >= 25){
+                    rent = rent * 50 / 100;
+                }
+                else{
+                    rent = 0;
+                }
+            }
+
+            if(hasStructuralDamage(property) == 1){
+                rent = rent * 75 / 100;
             }
         }
 
-        //rent calculation for railwayStations
+        // Railway stations
         else if(property->type == SQUARE_RAILWAY){
 
             int railwayCount = 0;
 
             for(int i = 0; i < BOARD_SIZE; i++){
-                if(board[i].type == SQUARE_RAILWAY && board[i].owner == property->owner){
+
+                if(board[i].type == SQUARE_RAILWAY &&
+                   board[i].owner == property->owner){
+
                     railwayCount++;
                 }
             }
 
-            switch (railwayCount)
-            {
-            case 1:
-                rent = 250;
-                break;
-            case 2:
-                rent = 500;
-                break;
-            case 3:
-                rent = 1000;
-                break;
-            case 4:
-                rent = 2000;
-                break;
-             default:
-                    printf("WARNING: invalid railwayCount value %d\n", railwayCount);
+            switch(railwayCount){
+
+                case 1:
+                    rent = 250;
+                    break;
+
+                case 2:
+                    rent = 500;
+                    break;
+
+                case 3:
+                    rent = 1000;
+                    break;
+
+                case 4:
+                    rent = 2000;
+                    break;
+
+                default:
+                    printf("WARNING: invalid railwayCount value %d\n",
+                           railwayCount);
                     rent = 0;
-                    break;      
+                    break;
             }
-            
         }
-        
-        //rent calculation for utility
+
+        // Utilities
         else if(property->type == SQUARE_UTILITY){
 
             int utilityCount = 0;
 
             for(int i = 0; i < BOARD_SIZE; i++){
-                if(board[i].type == SQUARE_UTILITY && board[i].owner == property->owner){
+
+                if(board[i].type == SQUARE_UTILITY &&
+                   board[i].owner == property->owner){
+
                     utilityCount++;
                 }
             }
-            
+
             if(utilityCount == 1){
                 rent = diceTotal * 4;
             }
@@ -123,10 +149,12 @@ int calculateRent(Property board[], int squareIndex, int diceTotal){
                 rent = diceTotal * 10;
             }
             else{
-                printf("WARNING: invalid utilityCount value: %d\n", utilityCount);
+                printf("WARNING: invalid utilityCount value: %d\n",
+                       utilityCount);
             }
         }
     }
+
     return rent;
 }
 
@@ -660,7 +688,21 @@ void handleLoanDefault(Player players[], int playerIndex, Property board[], int 
        //Remove buildings
         property->numHouses = 0;
         property->hasHotel = 0;
+        
+        for(int j = 0; j < 4; j++){
 
+            property->houses[j].conditionRating = 100;
+            property->houses[j].roundsNeglected = 0;
+            property->houses[j].isStructurallyDamaged = 0;
+        }
+
+        property->hotel.conditionRating = 100;
+        property->hotel.roundsNeglected = 0;
+        property->hotel.isStructurallyDamaged = 0;
+
+        property->isDamaged = 0;
+        property->damageType = DISASTER_NONE;
+        property->repairCost = 0;
     
         //Cancel insurance
         cancelInsurance(property);
@@ -1146,3 +1188,436 @@ void cancelInsurance(Property *property){
     property->insurance.provider = INSURANCE_PROVIDER_NONE;
     property->insurance.expiryRound = 0;
 }
+
+
+
+void updatePropertyAges(Property board[]){
+
+    for(int i = 0; i < BOARD_SIZE; i++){
+
+        if(board[i].type == SQUARE_PROPERTY &&
+           board[i].owner != -1){
+
+            board[i].age++;
+        }
+    }
+}
+
+void updatePropertyDepreciation(Property board[]){
+
+    for(int i = 0; i < BOARD_SIZE; i++){
+
+        Property *property = &board[i];
+
+        if(property->type != SQUARE_PROPERTY){
+            continue;
+        }
+
+        if(property->owner == -1){
+            continue;
+        }
+
+        if(property->age <= 50){
+            continue;
+        }
+
+        if(property->age % 5 != 0){
+            continue;
+        }
+
+        if(property->depreciationPercent >= 30){
+            continue;
+        }
+
+        property->depreciationPercent++;
+
+        printf("%s depreciation increased to %d%%.\n",
+               property->name,
+               property->depreciationPercent);
+    }
+}
+
+int calculateDepreciatedValue(Property *property){
+
+    if(property->depreciationPercent <= 0){
+        return property->marketValue;
+    }
+
+    return property->marketValue * (100 - property->depreciationPercent) / 100;
+}
+
+int canRenovateProperty(Player players[], int playerIndex, Property board[], int squareIndex){
+
+    if(squareIndex < 0 || squareIndex >= BOARD_SIZE){
+        return 0;
+    }
+
+    Property *property = &board[squareIndex];
+
+    if(property->type != SQUARE_PROPERTY){
+        return 0;
+    }
+
+    if(property->owner != playerIndex){
+        return 0;
+    }
+
+    if(property->depreciationPercent <= 0){
+        return 0;
+    }
+
+    int renovationCost = calculateRenovationCost(property);
+
+    if(players[playerIndex].cash < renovationCost){
+        return 0;
+    }
+
+    return 1;
+}
+
+int calculateRenovationCost(Property *property){
+
+    int currentValue = calculateCurrentPropertyValue(property);
+
+    return currentValue * 10 / 100;
+}
+
+int renovateProperty(Player players[], int playerIndex, Property board[], int squareIndex){
+
+    if(canRenovateProperty(players, playerIndex, board, squareIndex) == 0){
+        return 0;
+    }
+
+    Player *player = &players[playerIndex];
+    Property *property = &board[squareIndex];
+
+    int renovationCost = calculateRenovationCost(property);
+    int oldDepreciation = property->depreciationPercent;
+
+    player->cash -= renovationCost;
+
+    property->depreciationPercent = 0;
+    property->age = 0;
+
+    printf("%s renovated %s.\n",
+           player->name,
+           property->name);
+
+    printf("Previous depreciation: %d%%\n",
+           oldDepreciation);
+
+    printf("Renovation cost: LKR %d\n",
+           renovationCost);
+
+    printf("Property age reset to 0.\n");
+
+    printf("Current property value: LKR %d\n",
+           calculateDepreciatedValue(property));
+
+    return 1;
+}
+
+
+void updateBuildingConditions(Property board[]){
+
+    for(int i = 0; i < BOARD_SIZE; i++){
+
+        Property *property = &board[i];
+
+        if(property->type != SQUARE_PROPERTY){
+            continue;
+        }
+
+
+        if(property->hasHotel == 1){
+
+            BuildingCondition *hotel = &property->hotel;
+
+            if(hotel->conditionRating > 0){
+                hotel->conditionRating -= 2;
+            }
+
+            if(hotel->conditionRating < 0){
+                hotel->conditionRating = 0;
+            }
+
+            hotel->roundsNeglected++;
+
+            if(hotel->roundsNeglected > 20 &&
+               hotel->isStructurallyDamaged == 0){
+
+                hotel->isStructurallyDamaged = 1;
+
+                printf("Hotel on %s has suffered structural damage.\n",
+                       property->name);
+            }
+
+            continue;
+        }
+
+
+        for(int j = 0; j < property->numHouses; j++){
+
+            BuildingCondition *house = &property->houses[j];
+
+            if(house->conditionRating > 0){
+                house->conditionRating -= 2;
+            }
+
+            if(house->conditionRating < 0){
+                house->conditionRating = 0;
+            }
+
+            house->roundsNeglected++;
+
+            if(house->roundsNeglected > 20 &&
+               house->isStructurallyDamaged == 0){
+
+                house->isStructurallyDamaged = 1;
+
+                printf("House %d on %s has suffered structural damage.\n",
+                       j + 1,
+                       property->name);
+            }
+        }
+    }
+}
+
+int calculateAverageBuildingCondition(Property *property){
+
+    if(property->hasHotel == 1){
+        return property->hotel.conditionRating;
+    }
+
+    if(property->numHouses == 0){
+        return 100;
+    }
+
+    int totalCondition = 0;
+
+    for(int i = 0; i < property->numHouses; i++){
+        totalCondition += property->houses[i].conditionRating;
+    }
+
+    return totalCondition / property->numHouses;
+}
+
+int calculateHouseMaintenanceCost(Property *property, int houseIndex){
+
+    if(houseIndex < 0 || houseIndex >= property->numHouses){
+        return 0;
+    }
+
+    int maintenanceCost = property->houseCost * 5 / 100;
+
+    if(property->houses[houseIndex].isStructurallyDamaged == 1){
+        maintenanceCost += maintenanceCost * 50 / 100;
+    }
+
+    return maintenanceCost;
+}
+
+int calculateHotelMaintenanceCost(Property *property){
+
+    if(property->hasHotel == 0){
+        return 0;
+    }
+
+    int maintenanceCost = property->hotelCost * 8 / 100;
+
+    if(property->hotel.isStructurallyDamaged == 1){
+        maintenanceCost += maintenanceCost * 50 / 100;
+    }
+
+    return maintenanceCost;
+}
+
+int maintainHouse(Player *player, Property *property, int houseIndex){
+
+    if(houseIndex < 0 || houseIndex >= property->numHouses){
+        return 0;
+    }
+
+    BuildingCondition *house = &property->houses[houseIndex];
+
+    int maintenanceCost =
+        calculateHouseMaintenanceCost(property, houseIndex);
+
+    if(player->cash < maintenanceCost){
+
+        printf("%s does not have enough cash to maintain House %d on %s.\n",
+               player->name,
+               houseIndex + 1,
+               property->name);
+
+        return 0;
+    }
+
+    player->cash -= maintenanceCost;
+
+    house->conditionRating = 100;
+    house->roundsNeglected = 0;
+
+    printf("%s maintained House %d on %s for LKR %d.\n",
+           player->name,
+           houseIndex + 1,
+           property->name,
+           maintenanceCost);
+
+    return 1;
+}
+
+int maintainHotel(Player *player, Property *property){
+
+    if(property->hasHotel == 0){
+        return 0;
+    }
+
+    int maintenanceCost =
+        calculateHotelMaintenanceCost(property);
+
+    if(player->cash < maintenanceCost){
+
+        printf("%s does not have enough cash to maintain the hotel on %s.\n",
+               player->name,
+               property->name);
+
+        return 0;
+    }
+
+    player->cash -= maintenanceCost;
+
+    property->hotel.conditionRating = 100;
+    property->hotel.roundsNeglected = 0;
+
+    printf("%s maintained the hotel on %s for LKR %d.\n",
+           player->name,
+           property->name,
+           maintenanceCost);
+
+    return 1;
+}
+
+
+int hasStructuralDamage(Property *property){
+
+    if(property->hasHotel == 1){
+        return property->hotel.isStructurallyDamaged;
+    }
+
+    for(int i = 0; i < property->numHouses; i++){
+
+        if(property->houses[i].isStructurallyDamaged == 1){
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int calculateHouseStructuralRenovationCost(Property *property, int houseIndex){
+
+    if(houseIndex < 0 || houseIndex >= property->numHouses){
+        return 0;
+    }
+
+    return property->houseCost * 25 / 100;
+}
+
+int calculateHotelStructuralRenovationCost(Property *property){
+
+    if(property->hasHotel == 0){
+        return 0;
+    }
+
+    return property->hotelCost * 25 / 100;
+}
+
+int renovateHouseStructuralDamage(Player *player, Property *property, int houseIndex){
+
+    if(houseIndex < 0 || houseIndex >= property->numHouses){
+        return 0;
+    }
+
+    BuildingCondition *house = &property->houses[houseIndex];
+
+    if(house->isStructurallyDamaged == 0){
+        return 0;
+    }
+
+    int renovationCost =
+        calculateHouseStructuralRenovationCost(property, houseIndex);
+
+    if(player->cash < renovationCost){
+
+        printf("%s does not have enough cash to renovate House %d on %s.\n",
+               player->name,
+               houseIndex + 1,
+               property->name);
+
+        return 0;
+    }
+
+    player->cash -= renovationCost;
+
+    house->isStructurallyDamaged = 0;
+    house->conditionRating = 100;
+    house->roundsNeglected = 0;
+
+    printf("%s repaired structural damage on House %d of %s for LKR %d.\n",
+           player->name,
+           houseIndex + 1,
+           property->name,
+           renovationCost);
+
+    return 1;
+}
+
+int renovateHotelStructuralDamage(Player *player, Property *property){
+
+    if(property->hasHotel == 0){
+        return 0;
+    }
+
+    if(property->hotel.isStructurallyDamaged == 0){
+        return 0;
+    }
+
+    int renovationCost =
+        calculateHotelStructuralRenovationCost(property);
+
+    if(player->cash < renovationCost){
+
+        printf("%s does not have enough cash to renovate the hotel on %s.\n",
+               player->name,
+               property->name);
+
+        return 0;
+    }
+
+    player->cash -= renovationCost;
+
+    property->hotel.isStructurallyDamaged = 0;
+    property->hotel.conditionRating = 100;
+    property->hotel.roundsNeglected = 0;
+
+    printf("%s repaired structural damage on the hotel of %s for LKR %d.\n",
+           player->name,
+           property->name,
+           renovationCost);
+
+    return 1;
+}
+
+//to calculate the property value after applying both age depriciation & structural damage depritiation.
+int calculateCurrentPropertyValue(Property *property){
+
+    int currentValue = calculateDepreciatedValue(property);
+
+    if(hasStructuralDamage(property) == 1){
+        currentValue = currentValue * 85 / 100;
+    }
+
+    return currentValue;
+}
+

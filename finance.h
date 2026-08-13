@@ -33,4 +33,30 @@ int repairDamagedProperty(Player players[], Property *property);
 void checkAutomaticRepairs(Player players[], Property board[]);
 void cancelInsurance(Property *property);
 
+
+void updatePropertyAges(Property board[]);
+void updatePropertyDepreciation(Property board[]);
+int calculateDepreciatedValue(Property *property);
+int canRenovateProperty(Player players[], int playerIndex, Property board[], int squareIndex);
+int calculateRenovationCost(Property *property);
+int renovateProperty(Player players[], int playerIndex, Property board[], int squareIndex);
+
+void updateBuildingConditions(Property board[]);
+int calculateAverageBuildingCondition(Property *property);
+int hasStructuralDamage(Property *property);
+
+int calculateHouseMaintenanceCost(Property *property, int houseIndex);
+int calculateHotelMaintenanceCost(Property *property);
+
+int maintainHouse(Player *player, Property *property, int houseIndex);
+int maintainHotel(Player *player, Property *property);
+
+int calculateHouseStructuralRenovationCost(Property *property, int houseIndex);
+int calculateHotelStructuralRenovationCost(Property *property);
+
+int renovateHouseStructuralDamage(Player *player, Property *property, int houseIndex);
+int renovateHotelStructuralDamage(Player *player, Property *property);
+
+int calculateCurrentPropertyValue(Property *property);
+
 #endif
