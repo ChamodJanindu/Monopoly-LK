@@ -63,8 +63,11 @@ void handleLanding(Player players[], int playerIndex, Property board[], int dice
             break;
 
         case SQUARE_INSURANCE:
-            printf("%s landed on Insurance office: %s (not yet implemented)\n",
-                   player->name, square->name);
+            printf("%s landed on Insurance office: %s.\n",
+            player->name,
+            square->name);
+
+            handleInsurance(players, playerIndex, board, pos, game);
             break;
 
         case SQUARE_FREE_PARKING:
@@ -211,7 +214,7 @@ void testTurnRotation(Player players[], int numPlayers, Property board[], int ta
 
             playTurn(players, playerIndex, board, turnOrder, game);
 
-            updateCompletedRounds(game, players, numPlayers);
+            updateCompletedRounds(game, players, numPlayers, board);
 
             if(game->completedRounds >= targetCompletedRounds){
                 break;
@@ -219,6 +222,8 @@ void testTurnRotation(Player players[], int numPlayers, Property board[], int ta
         }
     }
 }
+
+
 
 void playTurn(Player players[], int playerIndex, Property board[], int turnOrder[], GameState *game){
 
@@ -303,6 +308,41 @@ void playTurn(Player players[], int playerIndex, Property board[], int turnOrder
     handleConstructionPhase(players, playerIndex, board);
 }
 
+void updateCompletedRounds(GameState *game, Player players[], int numPlayers, Property board[]){
+    int newCompletedRounds = calculateCompletedRounds(
+        players,
+        numPlayers,
+        game->completedRounds
+    );
+
+    while (game->completedRounds < newCompletedRounds) {
+
+        game->completedRounds++;
+
+        printf("\n=============================================\n");
+        printf("GLOBAL ROUND %d COMPLETED\n",
+               game->completedRounds);
+        printf("=============================================\n");
+        
+
+        updateInsuranceAfterRound(players, board, game);
+        checkAutomaticRepairs(players, board);
+        /*
+         * Later, end-of-round systems will run here:
+         *
+         * applyLoanInterest();
+         * updateInsuranceExpiry();
+         * updatePropertyAge();
+         * reduceBuildingCondition();
+         * processInflation();
+         * processEconomicEvents();
+         * processGovernmentRegulations();
+         * printRoundSummary();
+         */
+    }
+}
+
+
 void handlePropertyPurchase(Player players[], int playerIndex, Property board[], int squareIndex, int turnOrder[]){
 
     Player *player = &players[playerIndex];
@@ -361,7 +401,6 @@ int assignPropertyToPlayer(Player players[], int playerIndex, Property board[], 
     return 1;
 }
 
-
 int calculateCompletedRounds(Player players[], int numPlayers, int currentCompletedRounds){
     int minimumLapCount = -1;
 
@@ -393,37 +432,6 @@ int calculateCompletedRounds(Player players[], int numPlayers, int currentComple
     }
 
     return minimumLapCount;
-}
-
-void updateCompletedRounds(GameState *game, Player players[], int numPlayers){
-    int newCompletedRounds = calculateCompletedRounds(
-        players,
-        numPlayers,
-        game->completedRounds
-    );
-
-    while (game->completedRounds < newCompletedRounds) {
-
-        game->completedRounds++;
-
-        printf("\n=============================================\n");
-        printf("GLOBAL ROUND %d COMPLETED\n",
-               game->completedRounds);
-        printf("=============================================\n");
-
-        /*
-         * Later, end-of-round systems will run here:
-         *
-         * applyLoanInterest();
-         * updateInsuranceExpiry();
-         * updatePropertyAge();
-         * reduceBuildingCondition();
-         * processInflation();
-         * processEconomicEvents();
-         * processGovernmentRegulations();
-         * printRoundSummary();
-         */
-    }
 }
 
 void handleAuction(Player players[], Property board[], int squareIndex, int turnOrder[]){

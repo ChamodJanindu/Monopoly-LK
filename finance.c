@@ -10,6 +10,11 @@ int calculateRent(Property board[], int squareIndex, int diceTotal){
     //this function will only be called by owned by other section in handleLanding function. therfore no need for a isowned? check.
     
     Property *property = &board[squareIndex];
+
+    if(property->isDamaged == 1){
+        return 0;
+    }
+
     int multiplier = 1;
     int rent = 0;
 
@@ -658,10 +663,7 @@ void handleLoanDefault(Player players[], int playerIndex, Property board[], int 
 
     
         //Cancel insurance
-        property->insurance.isActive = 0;
-        property->insurance.policyType = POLICY_NONE;
-        property->insurance.provider = 0;
-        property->insurance.expiryRound = 0;
+        cancelInsurance(property);
 
         
         //Property returns to the Bank
@@ -806,3 +808,341 @@ void handleBank(Player players[], int playerIndex, Property board[], GameState *
 }
 
 
+
+
+int canInsureProperty(Property board[], int playerIndex, int squareIndex, InsurancePolicyType policyType){
+
+    if(squareIndex < 0 || squareIndex >= BOARD_SIZE){
+        return 0;
+    }
+
+    Property *property = &board[squareIndex];
+
+    if(property->type != SQUARE_PROPERTY){
+        return 0;
+    }
+
+    if(property->owner != playerIndex){
+        return 0;
+    }
+
+    if(policyType == POLICY_NONE){
+        return 0;
+    }
+
+    if(policyType == POLICY_BUSINESS_INTERRUPTION && property->hasHotel == 0){
+        return 0;
+    }
+
+    return 1;
+}
+
+int calculateInsurancePremium(Property *property, InsurancePolicyType policyType){
+
+    if(property == NULL){
+        return 0;
+    }
+
+    int premium = 0;
+
+    switch(policyType){
+
+        case POLICY_BASIC:
+            premium = property->marketValue * 5 / 100;
+            break;
+
+        case POLICY_COMPREHENSIVE:
+            premium = property->marketValue * 10 / 100;
+            break;
+
+        case POLICY_BUSINESS_INTERRUPTION:
+            premium = property->marketValue * 15 / 100;
+            break;
+
+        case POLICY_NONE:
+            return 0;
+    }
+
+    return premium;
+}
+
+int purchaseInsurance(Player players[], int playerIndex, Property board[], int squareIndex, InsurancePolicyType policyType, InsuranceProvider provider, GameState *game){
+
+    Player *player = &players[playerIndex];
+    Property *property = &board[squareIndex];
+
+    if(canInsureProperty(board, playerIndex, squareIndex, policyType) == 0){
+
+        printf("%s cannot be insured with this policy.\n",
+               property->name);
+
+        return 0;
+    }
+
+    if(provider != INSURANCE_PROVIDER_SRI_LANKA &&
+       provider != INSURANCE_PROVIDER_CEYLINCO){
+
+        return 0;
+    }
+
+    int premium = calculateInsurancePremium(property, policyType);
+
+    if(player->cash < premium){
+
+        printf("%s does not have enough cash to insure %s.\n",
+               player->name,
+               property->name);
+
+        return 0;
+    }
+
+    player->cash -= premium;
+
+    property->insurance.isActive = 1;
+    property->insurance.policyType = policyType;
+    property->insurance.provider = provider;
+    property->insurance.expiryRound = game->completedRounds + INSURANCE_DURATION_ROUNDS;
+
+    printf("%s purchased insurance for %s.\n",
+           player->name,
+           property->name);
+
+    printf("Premium: LKR %d\n", premium);
+    printf("Expiry round: %d\n", property->insurance.expiryRound);
+    printf("Remaining cash: LKR %d\n", player->cash);
+
+    return 1;
+}
+
+void handleInsurance(Player players[], int playerIndex, Property board[], int insuranceSquareIndex, GameState *game){
+
+    Player *player = &players[playerIndex];
+
+    InsuranceProvider provider;
+
+    if(insuranceSquareIndex == SRI_LANKA_INSURANCE_SQUARE){
+
+        provider = INSURANCE_PROVIDER_SRI_LANKA;
+    }
+    else if(insuranceSquareIndex == CEYLINCO_INSURANCE_SQUARE){
+
+        provider = INSURANCE_PROVIDER_CEYLINCO;
+    }
+    else{
+
+        printf("Invalid insurance square.\n");
+        return;
+    }
+
+    //to chose the property base on player strategy
+    int propertyIndex = decideInsuranceProperty(player, board);
+
+    if(propertyIndex == -1){
+
+        printf("%s has no property available for insurance.\n",
+               player->name);
+
+        return;
+    }
+
+    InsurancePolicyType policyType = decideInsurancePolicy(player, &board[propertyIndex]);
+
+        if(canInsureProperty(board, playerIndex, propertyIndex, policyType) == 0){
+
+        printf("%s cannot be insured with the selected policy.\n",
+               board[propertyIndex].name);
+
+        return;
+    }
+
+    purchaseInsurance(players, playerIndex, board, propertyIndex, policyType, provider, game);
+}
+
+void updateInsuranceAfterRound(Player players[], Property board[], GameState *game){
+
+    for(int i = 0; i < BOARD_SIZE; i++){
+
+        Property *property = &board[i];
+
+        if(property->insurance.isActive == 0){
+            continue;
+        }
+
+        int roundsRemaining = property->insurance.expiryRound - game->completedRounds;
+
+        if(roundsRemaining == 3){
+
+            printf("Insurance on %s expires in 3 rounds.\n",
+                   property->name);
+
+            if(property->owner >= 0 && property->owner < NUM_PLAYERS){
+
+                printf("Owner: %s\n",
+                       players[property->owner].name);
+            }
+        }
+
+        if(roundsRemaining <= 0){
+
+            printf("Insurance on %s has expired.\n",
+                   property->name);
+
+            cancelInsurance(property);
+        }
+    }
+}
+
+int isDisasterCovered(Property *property){
+
+    if(property->insurance.isActive == 0){
+        return 0;
+    }
+
+    switch(property->insurance.policyType){
+
+        case POLICY_BASIC:
+
+            if(property->damageType == DISASTER_FIRE ||
+               property->damageType == DISASTER_FLOOD){
+
+                return 1;
+            }
+
+            break;
+
+        case POLICY_COMPREHENSIVE:
+
+            if(property->damageType == DISASTER_FIRE ||
+               property->damageType == DISASTER_FLOOD ||
+               property->damageType == DISASTER_RIOT ||
+               property->damageType == DISASTER_VANDALISM){
+
+                return 1;
+            }
+
+            break;
+
+        case POLICY_BUSINESS_INTERRUPTION:
+
+            if(property->hasHotel == 1){
+                return 1;
+            }
+
+            break;
+
+        case POLICY_NONE:
+            return 0;
+    }
+
+    return 0;
+}
+
+int calculateInsuranceCompensation(Property *property){
+
+    if(isDisasterCovered(property) == 0){
+        return 0;
+    }
+
+    if(property->insurance.policyType == POLICY_BASIC){
+
+        return property->repairCost * 80 / 100;
+    }
+
+    if(property->insurance.policyType == POLICY_COMPREHENSIVE){
+
+        return property->repairCost;
+    }
+
+    if(property->insurance.policyType == POLICY_BUSINESS_INTERRUPTION){
+
+        int lostRent = property->baseRent * 5;
+
+        return property->repairCost + lostRent;
+    }
+
+    return 0;
+}
+
+int processInsuranceClaim(Player players[], Property *property){
+
+    if(property->owner < 0 || property->owner >= NUM_PLAYERS){
+        return 0;
+    }
+
+    if(isDisasterCovered(property) == 0){
+        return 0;
+    }
+
+    int compensation = calculateInsuranceCompensation(property);
+
+    Player *owner = &players[property->owner];
+
+    owner->cash += compensation;
+
+    printf("%s received an insurance claim for %s.\n",
+           owner->name,
+           property->name);
+
+    printf("Compensation: LKR %d\n",
+           compensation);
+
+    printf("Current cash: LKR %d\n",
+           owner->cash);
+
+    return 1;
+}
+
+int repairDamagedProperty(Player players[], Property *property){
+
+    if(property->isDamaged == 0){
+        return 0;
+    }
+
+    if(property->owner < 0 || property->owner >= NUM_PLAYERS){
+        return 0;
+    }
+
+    Player *owner = &players[property->owner];
+
+    if(owner->cash < property->repairCost){
+        return 0;
+    }
+
+    owner->cash -= property->repairCost;
+
+    printf("%s repaired %s for LKR %d.\n",
+           owner->name,
+           property->name,
+           property->repairCost);
+
+    property->isDamaged = 0;
+    property->damageType = DISASTER_NONE;
+    property->repairCost = 0;
+
+    printf("%s can now collect rent again.\n",
+           property->name);
+
+    printf("Remaining cash: LKR %d\n",
+           owner->cash);
+
+    return 1;
+}
+
+void checkAutomaticRepairs(Player players[], Property board[]){
+
+    for(int i = 0; i < BOARD_SIZE; i++){
+
+        if(board[i].isDamaged == 1){
+
+            repairDamagedProperty(players, &board[i]);
+        }
+    }
+}
+
+void cancelInsurance(Property *property){
+
+    property->insurance.isActive = 0;
+    property->insurance.policyType = POLICY_NONE;
+    property->insurance.provider = INSURANCE_PROVIDER_NONE;
+    property->insurance.expiryRound = 0;
+}

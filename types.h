@@ -15,6 +15,9 @@
 #define LOAN_DURATION_ROUNDS 20
 #define INSURANCE_DURATION_ROUNDS 20
 
+#define SRI_LANKA_INSURANCE_SQUARE 17
+#define CEYLINCO_INSURANCE_SQUARE 33
+
 typedef enum{
     SQUARE_START,
     SQUARE_PROPERTY, 
@@ -64,10 +67,26 @@ typedef enum {
     POLICY_BUSINESS_INTERRUPTION
 } InsurancePolicyType;
 
+typedef enum {
+    INSURANCE_PROVIDER_NONE,
+    INSURANCE_PROVIDER_SRI_LANKA,
+    INSURANCE_PROVIDER_CEYLINCO
+} InsuranceProvider;
+
+typedef enum {
+    DISASTER_NONE,
+    DISASTER_FIRE,
+    DISASTER_FLOOD,
+    DISASTER_RIOT,
+    DISASTER_BUILDING_COLLAPSE,
+    DISASTER_ELECTRICAL_FAILURE,
+    DISASTER_VANDALISM
+} DisasterType;
+
 typedef struct{
     int isActive;
     InsurancePolicyType policyType;
-    int provider;
+    InsuranceProvider provider;
     int expiryRound;
 } Insurance;
 
@@ -106,6 +125,10 @@ typedef struct {
     int conditionRating;
     int age;
     int roundsNeglected;
+    int isDamaged;
+    DisasterType damageType;
+    int repairCost;
+
 
     Insurance insurance;
 } Property;

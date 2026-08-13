@@ -206,3 +206,30 @@ int decideLoanIncreaseAmount(Player *player, Property board[]){
 
     return availableIncrease;
 }
+
+
+
+int decideInsuranceProperty(Player *player, Property board[]){
+
+    for(int i = 0; i < player->numOwnedProperties; i++){
+
+        int squareIndex = player->ownedProperties[i];
+
+        if(board[squareIndex].type == SQUARE_PROPERTY){
+            return squareIndex;
+        }
+    }
+
+    return -1;
+}
+
+InsurancePolicyType decideInsurancePolicy(Player *player, Property *property){
+
+    (void)player;
+    
+    if(property->hasHotel == 1){
+        return POLICY_COMPREHENSIVE;
+    }
+
+    return POLICY_BASIC;
+}

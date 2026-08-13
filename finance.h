@@ -21,4 +21,16 @@ int increaseLoan(Player *player, Property board[], int additionalAmount);
 void handleLoanDefault(Player players[], int playerIndex, Property board[], int turnOrder[]);
 void handleBank(Player players[], int playerIndex, Property board[], GameState *game);
 
+int canInsureProperty(Property board[], int playerIndex, int squareIndex, InsurancePolicyType policyType);
+int calculateInsurancePremium(Property *property, InsurancePolicyType policyType);
+int purchaseInsurance(Player players[], int playerIndex, Property board[], int squareIndex, InsurancePolicyType policyType, InsuranceProvider provider, GameState *game);
+void handleInsurance(Player players[], int playerIndex, Property board[], int insuranceSquareIndex, GameState *game);
+void updateInsuranceAfterRound(Player players[], Property board[], GameState *game);
+int isDisasterCovered(Property *property);
+int calculateInsuranceCompensation(Property *property);
+int processInsuranceClaim(Player players[], Property *property);
+int repairDamagedProperty(Player players[], Property *property);
+void checkAutomaticRepairs(Player players[], Property board[]);
+void cancelInsurance(Property *property);
+
 #endif

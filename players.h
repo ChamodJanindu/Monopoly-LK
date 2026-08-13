@@ -19,4 +19,7 @@ int decideLoanAmount(Player *player, Property board[]);
 int decidePartialRepaymentAmount(Player *player);
 int decideLoanIncreaseAmount(Player *player, Property board[]);
 
+int decideInsuranceProperty(Player *player, Property board[]);
+InsurancePolicyType decideInsurancePolicy(Player *player, Property *property);
+
 #endif

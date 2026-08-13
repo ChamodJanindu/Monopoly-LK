@@ -17,18 +17,40 @@ static void setSpecialSquare(Property board[], int index, const char *name, Squa
 }   
 
 static void setPropertySquare(Property board[], int index, const char *name, PropertyGroup group, int purchasePrice, int mortgageValue, int baseRent, int houseCost, int hotelCost){
+
     copySquareName(&board[index], name);
+
     board[index].type = SQUARE_PROPERTY;
     board[index].group = group;
+
     board[index].purchasePrice = purchasePrice;
+    board[index].marketValue = purchasePrice;
     board[index].mortgageValue = mortgageValue;
     board[index].baseRent = baseRent;
     board[index].houseCost = houseCost;
     board[index].hotelCost = hotelCost;
-    board[index].marketValue = purchasePrice;
+
+    board[index].taxAmount = 0;
 
     board[index].owner = -1;
+    board[index].isMortgaged = 0;
+    board[index].isLoanLocked = 0;
+
+    board[index].numHouses = 0;
+    board[index].hasHotel = 0;
+
     board[index].conditionRating = 100;
+    board[index].age = 0;
+    board[index].roundsNeglected = 0;
+
+    board[index].isDamaged = 0;
+    board[index].damageType = DISASTER_NONE;
+    board[index].repairCost = 0;
+
+    board[index].insurance.isActive = 0;
+    board[index].insurance.policyType = POLICY_NONE;
+    board[index].insurance.provider = INSURANCE_PROVIDER_NONE;
+    board[index].insurance.expiryRound = 0;
 }
 
 static void setRailwaySquare(Property board[], int index, const char *name) {

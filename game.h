@@ -15,7 +15,7 @@ void initGameState(GameState *game);
 int assignPropertyToPlayer(Player players[], int playerIndex, Property board[], int squareIndex);
 
 int calculateCompletedRounds(Player players[], int numPlayers, int currentCompletedRounds);
-void updateCompletedRounds(GameState *game, Player players[], int numPlayers);
+void updateCompletedRounds(GameState *game, Player players[], int numPlayers, Property board[]);
 
 void handleAuction(Player players[], Property board[], int squareIndex, int turnOrder[]);
 
