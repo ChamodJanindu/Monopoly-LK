@@ -203,10 +203,23 @@ void determineTurnOrder(Player players[], int turnOrder[]){
 }  
     
 void initGameState(GameState *game){
+
     game->completedRounds = 0;
     game->gameOver = 0;
 
     game->currentLoanInterestRate = 8;
+
+    game->currentInflationRate = 0;
+
+    game->boomGroup = GROUP_NONE;
+    game->declineGroup = GROUP_NONE;
+
+    game->boomRoundsRemaining = 0;
+    game->declineRoundsRemaining = 0;
+
+    for(int i = 0; i < 8; i++){
+        game->lastMarketAffectedRound[i] = -30;
+    }
 }
 
 void testTurnRotation(Player players[], int numPlayers, Property board[], int targetCompletedRounds, int turnOrder[], GameState *game){

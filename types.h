@@ -168,10 +168,23 @@ typedef struct {
     int die2;
 } DiceRoll;
 
-typedef struct {
+typedef struct{
+
     int completedRounds;
     int gameOver;
+
     int currentLoanInterestRate;
+
+    int currentInflationRate;
+
+    PropertyGroup boomGroup;
+    PropertyGroup declineGroup;
+
+    int boomRoundsRemaining;
+    int declineRoundsRemaining;
+
+    int lastMarketAffectedRound[8];
+
 } GameState;
 
 
