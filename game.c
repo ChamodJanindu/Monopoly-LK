@@ -6,6 +6,7 @@
 #include "players.h"
 #include "game.h"
 #include "finance.h"
+#include "events.h"
 
 void handleLanding(Player players[], int playerIndex, Property board[], int diceTotal, int turnOrder[], GameState *game){
 
@@ -31,7 +32,7 @@ void handleLanding(Player players[], int playerIndex, Property board[], int dice
             );       
             
             if(square->owner == -1){
-                handlePropertyPurchase(players, playerIndex, board, pos, turnOrder);
+                handlePropertyPurchase(players, playerIndex, board, pos, turnOrder, game);
             }
 
             else if(square->owner == playerIndex){
@@ -41,12 +42,12 @@ void handleLanding(Player players[], int playerIndex, Property board[], int dice
 
                 if(decidePropertyRenovation(player, square) == 1){
 
-                    renovateProperty(players, playerIndex, board, pos);
+                    renovateProperty(players, playerIndex, board, pos, game);
                 }
             }
 
             else {
-                payRent(players, playerIndex, board, pos, diceTotal);
+                payRent(players, playerIndex, board, pos, diceTotal, game);
             }
             break;
      
@@ -55,6 +56,7 @@ void handleLanding(Player players[], int playerIndex, Property board[], int dice
                 player->name,
                 square->name
             );
+            handleNationalEventCard(players, playerIndex, board, game);
             break;
     
         case SQUARE_TAX:
@@ -63,7 +65,7 @@ void handleLanding(Player players[], int playerIndex, Property board[], int dice
                 player->name,
                 square->name);
 
-            payTax(player, square);
+            payTax(players, playerIndex, square, board, game);
 
             break;
 
@@ -92,6 +94,15 @@ void handleLanding(Player players[], int playerIndex, Property board[], int dice
         case SQUARE_BANK:
             
             handleBank(players, playerIndex, board, game);
+            break;
+        
+        case SQUARE_COMMUNITY_FUND:
+
+            printf("%s landed on Community Development Fund.\n",
+                player->name);
+
+            payCommunityFundTax(players, playerIndex, board, game);
+
             break;
 
         default:
@@ -211,15 +222,28 @@ void initGameState(GameState *game){
 
     game->currentInflationRate = 0;
 
+    game->rentInflationIndex = 100;
+
     game->boomGroup = GROUP_NONE;
     game->declineGroup = GROUP_NONE;
 
     game->boomRoundsRemaining = 0;
     game->declineRoundsRemaining = 0;
 
+    game->activeEconomicEvent = ECONOMIC_EVENT_NONE;
+    game->economicEventRoundsRemaining = 0;
+
+    game->activeRegulation = REGULATION_NONE;
+    game->regulationRoundsRemaining = 0;
+
+    game->activeRegionalEvent = REGIONAL_EVENT_NONE;
+    game->regionalEventRoundsRemaining = 0;
+
     for(int i = 0; i < 8; i++){
         game->lastMarketAffectedRound[i] = -30;
     }
+
+    initNationalEventDeck(game);
 }
 
 void testTurnRotation(Player players[], int numPlayers, Property board[], int targetCompletedRounds, int turnOrder[], GameState *game){
@@ -280,19 +304,20 @@ void playTurn(Player players[], int playerIndex, Property board[], int turnOrder
             return;
         }
 
+        //if the player completes a lap imidiately after getting out of jail the loan needs to get updated.
         if(player->lapCount > lapsBefore){
 
             updateLoanAfterRound(player);
 
             if(player->loan.isActive == 1 && player->loan.roundsRemaining <= 0){
 
-                handleLoanDefault(players, playerIndex, board, turnOrder);
+                handleLoanDefault(players, playerIndex, board, turnOrder,game);
             }
         }
 
         if(player->isInJail == 0 && player->isBankrupt == 0){
 
-            handleConstructionPhase(players, playerIndex, board);
+            handleConstructionPhase(players, playerIndex, board, game);
         }
 
         return;
@@ -320,7 +345,7 @@ void playTurn(Player players[], int playerIndex, Property board[], int turnOrder
 
         if(player->loan.isActive == 1 && player->loan.roundsRemaining <= 0){
 
-             handleLoanDefault(players, playerIndex, board, turnOrder);
+             handleLoanDefault(players, playerIndex, board, turnOrder, game);
         }
     }
 
@@ -330,7 +355,7 @@ void playTurn(Player players[], int playerIndex, Property board[], int turnOrder
     } 
 
 
-    handleConstructionPhase(players, playerIndex, board);
+    handleConstructionPhase(players, playerIndex, board, game);
 }
 
 void updateCompletedRounds(GameState *game, Player players[], int numPlayers, Property board[]){
@@ -349,52 +374,90 @@ void updateCompletedRounds(GameState *game, Player players[], int numPlayers, Pr
                game->completedRounds);
         printf("=============================================\n");
         
+        updateInflation(board, game);
+
+        if(game->completedRounds % 10 == 0){
+            triggerRandomDisaster(players, board);
+        }
+                
+        updateEconomicEvent(game);
+
+        if(game->completedRounds % 15 == 0){
+            startEconomicEvent(game);
+        }
+
+        updateGovernmentRegulation(game);
+
+        if(game->completedRounds % 20 == 0){
+            startGovernmentRegulation(game);
+        }
+
+        updateMarketConditions(game);
+
+        if(game->completedRounds % 10 == 0){
+            startMarketReview(game);
+        }
+
+        updateRegionalEvent(game);
+
+        if(game->completedRounds % 15 == 0){
+            startRegionalEvent(game);
+        }
+
+        checkDevelopmentDeadlines(players, board, game);
 
         updateInsuranceAfterRound(players, board, game);
         checkAutomaticRepairs(players, board);
 
         updatePropertyAges(board);
         updatePropertyDepreciation(board);
-        updateBuildingConditions(board);           
-
-        /*
-         * Later, end-of-round systems will run here:
-         *
-         * applyLoanInterest();
-         * updateInsuranceExpiry();
-         * updatePropertyAge();
-         * reduceBuildingCondition();
-         * processInflation();
-         * processEconomicEvents();
-         * processGovernmentRegulations();
-         * printRoundSummary();
-         */
+        updateBuildingConditions(board);
+        
+        updateNationalCardEffects(players);
+        updateNationalEventProperties(board);
+        displayCurrentMarketConditions(game);
     }
 }
 
 
-void handlePropertyPurchase(Player players[], int playerIndex, Property board[], int squareIndex, int turnOrder[]){
+void handlePropertyPurchase(Player players[], int playerIndex, Property board[], int squareIndex, int turnOrder[], GameState *game){
 
     Player *player = &players[playerIndex];
     Property *property = &board[squareIndex];
 
+    int purchasePrice = calculateCurrentPurchasePrice(property, game);
+    
+    int developmentRequired = requiresImmediateDevelopment(player, board, game);
 
-    if(decidePurchase(player, property) == 1 && player->cash >= property->purchasePrice){
+
+    if(decidePurchase(player, property, board, purchasePrice, game) == 1 && player->cash >= purchasePrice){
         
         if(assignPropertyToPlayer(players, playerIndex, board, squareIndex) == 0){
             printf("Purchase failed for %s.\n", property->name);
             return;
         }
 
-        player->cash -= property->purchasePrice;
-    
+        player->cash -= purchasePrice;
+
+        if(developmentRequired == 1){
+
+            property->developmentDeadlineRound =
+                game->completedRounds + 5;
+
+            printf("%s must develop %s by Round %d due to the Anti-Speculation Act.\n",
+                player->name,
+                property->name,
+                property->developmentDeadlineRound);
+        }
+            
         printf("%s bought %s for %d. remaining cash %d\n",
-                player->name, property->name, property->purchasePrice, player->cash);
+                player->name, property->name, purchasePrice, player->cash);
     }
+    
     else {
         printf("%s declined to buy %s (cash: %d, price: %d)\n", player->name, property->name, player->cash, property->purchasePrice);
         
-        handleAuction(players, board, squareIndex, turnOrder);
+        handleAuction(players, board, squareIndex, turnOrder, game);
     }
 
 }
@@ -464,7 +527,7 @@ int calculateCompletedRounds(Player players[], int numPlayers, int currentComple
     return minimumLapCount;
 }
 
-void handleAuction(Player players[], Property board[], int squareIndex, int turnOrder[]){
+void handleAuction(Player players[], Property board[], int squareIndex, int turnOrder[], GameState *game){
 
     if(squareIndex < 0 || squareIndex >= BOARD_SIZE){
         printf("ERROR: Invalid auction square index %d.\n", squareIndex);
@@ -491,7 +554,11 @@ void handleAuction(Player players[], Property board[], int squareIndex, int turn
         return;
     }
 
-    int openingBid = property->marketValue / 2;
+    //to apply all types of eventvaluemodifiers
+    int currentValue = calculateAuctionMarketValue(property, game);
+    int openingBid = currentValue / 2;
+    openingBid = applyMarketAuctionModifier(property, openingBid, game);
+
     int currentBid = openingBid - AUCTION_INCREMENT;
     int highestBidder = -1;
 
@@ -514,7 +581,7 @@ void handleAuction(Player players[], Property board[], int squareIndex, int turn
     }
 
     printf("\nAuction started for %s.\n", property->name);
-    printf("Market value: LKR %d\n", property->marketValue);
+    printf("Current market value: LKR %d\n", currentValue);
     printf("Opening bid: LKR %d\n", openingBid);
     printf("Active bidders: %d\n", activeBidders);
 
@@ -538,7 +605,7 @@ void handleAuction(Player players[], Property board[], int squareIndex, int turn
             }
             
             int nextBid = currentBid + AUCTION_INCREMENT;
-            int wantsToBid = decideAuctionBid(&players[playerIndex], property, nextBid);
+            int wantsToBid = decideAuctionBid(&players[playerIndex], property, nextBid, currentValue);
             
             if(wantsToBid == 1){
                 currentBid = nextBid;
@@ -706,7 +773,7 @@ int ownsCompleteGroup(Property board[], int playerIndex, PropertyGroup group){
     return 0;
 }
 
-static int getDevelopmentLevel(Property *property){
+int getDevelopmentLevel(Property *property){
 
     if(property->hasHotel == 1){
         return 5;
@@ -761,7 +828,7 @@ int canBuildHouse(Property board[], int playerIndex, int squareIndex){
     return 1;
 }
 
-int buildHouse(Player players[], int playerIndex, Property board[], int squareIndex){
+int buildHouse(Player players[], int playerIndex, Property board[], int squareIndex, GameState *game){
 
     if(canBuildHouse(board, playerIndex, squareIndex) == 0){
         return 0;
@@ -770,7 +837,9 @@ int buildHouse(Player players[], int playerIndex, Property board[], int squareIn
     Player *player = &players[playerIndex];
     Property *property = &board[squareIndex];
 
-    if(player->cash < property->houseCost){
+    int constructionCost = calculateCurrentHouseCost(player, property, game);
+    
+    if(player->cash < constructionCost){
 
         printf("%s does not have enough cash to build a house on %s.\n",
             player->name,
@@ -779,7 +848,7 @@ int buildHouse(Player players[], int playerIndex, Property board[], int squareIn
         return 0;
     }
 
-    player->cash -= property->houseCost;
+    player->cash -= constructionCost;
 
     int newHouseIndex = property->numHouses;
 
@@ -789,10 +858,13 @@ int buildHouse(Player players[], int playerIndex, Property board[], int squareIn
 
     property->numHouses++;
 
+    //event(anti speculation act) - to reset the development round deadline after building a property
+    property->developmentDeadlineRound = -1;
+
     printf("%s built a house on %s for LKR %d.\n",
-        player->name,
-        property->name,
-        property->houseCost);
+       player->name,
+       property->name,
+       constructionCost);
 
     printf("Houses on %s: %d\n",
            property->name,
@@ -851,7 +923,7 @@ int canBuildHotel(Property board[], int playerIndex, int squareIndex){
     return 1;
 }
 
-int buildHotel(Player players[], int playerIndex, Property board[], int squareIndex){
+int buildHotel(Player players[], int playerIndex, Property board[], int squareIndex, GameState *game){
 
     if(canBuildHotel(board, playerIndex, squareIndex) == 0){
             return 0;
@@ -860,19 +932,24 @@ int buildHotel(Player players[], int playerIndex, Property board[], int squareIn
     Player *player = &players[playerIndex];
     Property *property = &board[squareIndex];
     
-    if(player->cash < property->hotelCost){
+    int constructionCost = calculateCurrentHotelCost(player, property, game);
+    
+    if(player->cash < constructionCost){
 
         printf("%s does not have enough cash to build a hotel on %s.\n",
-               player->name,
-               property->name);
+            player->name,
+            property->name);
 
         return 0;
     }
 
-    player->cash -= property->hotelCost;
+    player->cash -= constructionCost;
 
     property->numHouses = 0;
     property->hasHotel = 1;
+
+    //event(anti speculation act) - to reset the development round deadline after building a property
+    property->developmentDeadlineRound = -1;
 
     //when houses are replaced by a hotel the condition rating should go back to full cause its literally a new structure.
     property->hotel.conditionRating = 100;
@@ -901,9 +978,17 @@ int buildHotel(Player players[], int playerIndex, Property board[], int squareIn
 
 }
 
-void handleConstructionPhase(Player players[], int playerIndex, Property board[]){
+void handleConstructionPhase(Player players[], int playerIndex, Property board[], GameState *game){
 
     Player *player = &players[playerIndex];
+
+    if(canConstructWithNationalCards(player) == 0){
+
+        printf("%s cannot construct buildings because of the Labour Strike.\n",
+            player->name);
+
+        return;
+    }
 
     for(int i = 0; i < player->numOwnedProperties; i++){
 
@@ -912,19 +997,25 @@ void handleConstructionPhase(Player players[], int playerIndex, Property board[]
         
         if(canBuildHotel(board, playerIndex, squareIndex) == 1){
 
-            if(decideBuildHotel(player, property) == 1){
+            int constructionCost =
+                calculateCurrentHotelCost(player, property, game);
 
-                buildHotel(players, playerIndex, board, squareIndex);
+            if(decideBuildHotel(player, property, constructionCost, game) == 1){
+
+                buildHotel(players, playerIndex, board, squareIndex, game);
 
                 continue;
             }
         }
     
-          if(canBuildHouse(board, playerIndex, squareIndex) == 1){
+        if(canBuildHouse(board, playerIndex, squareIndex) == 1){
 
-            if(decideBuildHouse(player, property) == 1){
-                
-                buildHouse(players, playerIndex, board, squareIndex);
+            int constructionCost =
+                calculateCurrentHouseCost(player, property, game);
+
+            if(decideBuildHouse(player, property, constructionCost, game) == 1){
+
+                buildHouse(players, playerIndex, board, squareIndex, game);
             }
         }
     }
@@ -947,7 +1038,7 @@ void handleMaintenancePhase(Player players[], int playerIndex, Property board[])
 
             BuildingCondition *hotel = &property->hotel;
 
-            if(decideStructuralRenovation(player, hotel) == 1){
+            if(hotel->isStructurallyDamaged == 1){
 
                 renovateHotelStructuralDamage(player, property);
             }
@@ -963,7 +1054,7 @@ void handleMaintenancePhase(Player players[], int playerIndex, Property board[])
 
             BuildingCondition *house = &property->houses[j];
 
-            if(decideStructuralRenovation(player, house) == 1){
+            if(house->isStructurallyDamaged == 1){
 
                 renovateHouseStructuralDamage(player, property, j);
             }

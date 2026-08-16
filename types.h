@@ -29,7 +29,8 @@ typedef enum{
     SQUARE_INSURANCE,
     SQUARE_FREE_PARKING, 
     SQUARE_GO_TO_JAIL, 
-    SQUARE_BANK
+    SQUARE_BANK,
+    SQUARE_COMMUNITY_FUND
 }SquareType;
 
 typedef enum{
@@ -82,6 +83,75 @@ typedef enum {
     DISASTER_ELECTRICAL_FAILURE,
     DISASTER_VANDALISM
 } DisasterType;
+
+typedef enum{
+
+    ECONOMIC_EVENT_NONE,
+
+    ECONOMIC_EVENT_TOURISM_BOOM,
+    ECONOMIC_EVENT_FUEL_CRISIS,
+    ECONOMIC_EVENT_HEAVY_MONSOON,
+    ECONOMIC_EVENT_RECESSION,
+    ECONOMIC_EVENT_STOCK_MARKET_BOOM,
+    ECONOMIC_EVENT_HOUSING_PROGRAMME,
+    ECONOMIC_EVENT_FOREIGN_INVESTMENT,
+    ECONOMIC_EVENT_POLITICAL_UNREST
+
+} EconomicEventType;
+
+typedef enum{
+
+    REGULATION_NONE,
+
+    REGULATION_PROPERTY_TAX,
+    REGULATION_REDUCE_LOAN_INTEREST,
+    REGULATION_HOUSING_SUBSIDY,
+    REGULATION_LUXURY_PROPERTY_TAX,
+    REGULATION_RAILWAY_MODERNIZATION,
+    REGULATION_ELECTRICITY_TARIFF,
+    REGULATION_INSURANCE,
+    REGULATION_ANTI_SPECULATION
+
+} GovernmentRegulationType;
+
+typedef enum{
+    REGIONAL_EVENT_NONE,
+    REGIONAL_EVENT_SOUTHERN_TOURISM,
+    REGIONAL_EVENT_PORT_CITY,
+    REGIONAL_EVENT_IT_GROWTH,
+    REGIONAL_EVENT_NORTHERN_DEVELOPMENT,
+    REGIONAL_EVENT_TEA_EXPORT,
+    REGIONAL_EVENT_AIRPORT_EXPANSION,
+    REGIONAL_EVENT_UNIVERSITY_GROWTH,
+    REGIONAL_EVENT_BEACH_POLLUTION,
+    REGIONAL_EVENT_FLOOD_DAMAGE,
+    REGIONAL_EVENT_TRANSPORT_STRIKE,
+    REGIONAL_EVENT_ELECTRICITY_TARIFF,
+    REGIONAL_EVENT_WATER_SHORTAGE
+} RegionalEventType;
+
+typedef enum{
+    NATIONAL_CARD_TOURISM_HYPE,
+    NATIONAL_CARD_FUEL_SHORTAGE,
+    NATIONAL_CARD_HEAVY_FLOODS,
+    NATIONAL_CARD_POLITICAL_RALLY,
+    NATIONAL_CARD_STOCK_MARKET_RISE,
+    NATIONAL_CARD_ECONOMIC_DOWNTURN,
+    NATIONAL_CARD_HOUSING_SUBSIDY,
+    NATIONAL_CARD_INTEREST_RATE_CUT,
+    NATIONAL_CARD_INTEREST_RATE_INCREASE,
+    NATIONAL_CARD_TAX_AMNESTY,
+    NATIONAL_CARD_POWER_FAILURE,
+    NATIONAL_CARD_FOREIGN_FUNDING,
+    NATIONAL_CARD_PORT_EXPANSION,
+    NATIONAL_CARD_FESTIVAL_SEASON,
+    NATIONAL_CARD_LABOUR_STRIKE,
+    NATIONAL_CARD_INSURANCE_DISCOUNT,
+    NATIONAL_CARD_PROPERTY_REVALUATION,
+    NATIONAL_CARD_CURRENCY_DEPRECIATION,
+    NATIONAL_CARD_GOVERNMENT_GRANT,
+    NATIONAL_CARD_NATIONAL_DISASTER
+} NationalEventCardType;
 
 typedef struct{
     int isActive;
@@ -140,7 +210,11 @@ typedef struct {
     DisasterType damageType;
     int repairCost;
 
+    int developmentDeadlineRound;
+
     Insurance insurance;
+
+    int nationalEventClosedRounds;
 } Property;
 
 typedef struct {
@@ -161,6 +235,9 @@ typedef struct {
     int lapCount;
 
     Loan loan;
+
+    int nationalCardRounds[20];
+    PropertyGroup revaluationGroup;
 } Player;
 
 typedef struct {
@@ -177,6 +254,8 @@ typedef struct{
 
     int currentInflationRate;
 
+    int rentInflationIndex;
+
     PropertyGroup boomGroup;
     PropertyGroup declineGroup;
 
@@ -184,6 +263,18 @@ typedef struct{
     int declineRoundsRemaining;
 
     int lastMarketAffectedRound[8];
+
+    EconomicEventType activeEconomicEvent;
+    int economicEventRoundsRemaining;
+
+    GovernmentRegulationType activeRegulation;
+    int regulationRoundsRemaining;
+
+    RegionalEventType activeRegionalEvent;
+    int regionalEventRoundsRemaining;
+
+    NationalEventCardType nationalEventDeck[20];
+    int nationalEventTop;
 
 } GameState;
 

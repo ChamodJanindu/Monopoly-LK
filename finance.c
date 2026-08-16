@@ -1,17 +1,24 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "types.h"
 #include "board.h"
 #include "players.h"
 #include "game.h"
 #include "finance.h"
+#include "events.h"
 
-int calculateRent(Property board[], int squareIndex, int diceTotal){
+int calculateRent(Player players[], Property board[], int squareIndex, int diceTotal, GameState *game){
 
     // This function is only called when the property is owned by another player.
     Property *property = &board[squareIndex];
+    Player *owner = &players[property->owner];
 
     if(property->isDamaged == 1){
+        return 0;
+    }
+
+    if(property->nationalEventClosedRounds > 0){
         return 0;
     }
 
@@ -86,6 +93,7 @@ int calculateRent(Property board[], int squareIndex, int diceTotal){
             if(hasStructuralDamage(property) == 1){
                 rent = rent * 75 / 100;
             }
+
         }
 
         // Railway stations
@@ -126,6 +134,7 @@ int calculateRent(Property board[], int squareIndex, int diceTotal){
                     rent = 0;
                     break;
             }
+            rent = rent * game->rentInflationIndex / 100;
         }
 
         // Utilities
@@ -152,20 +161,39 @@ int calculateRent(Property board[], int squareIndex, int diceTotal){
                 printf("WARNING: invalid utilityCount value: %d\n",
                        utilityCount);
             }
+            rent = rent * game->rentInflationIndex / 100;
         }
     }
+    
+    rent = applyEconomicRentModifier(property, rent, game);
+    rent = applyMarketRentModifier(property, rent, game);
+    rent = applyRegionalRentModifier(property, rent, game);
+    rent = applyNationalCardRentModifier(owner, property, rent);
 
     return rent;
 }
 
-void payRent(Player players[], int playerIndex, Property board[], int squareIndex, int diceTotal){
+int calculateIncomeTax(Player players[], int playerIndex, Property board[], GameState *game){
+
+    int totalAssets =
+        calculatePlayerTaxableAssets(players, playerIndex, board, game);
+
+    int tax = totalAssets * 15 / 100;
+
+    if(game->activeRegulation == REGULATION_PROPERTY_TAX){
+        tax = tax * 150 / 100;
+    }
+
+    return tax;
+}
+void payRent(Player players[], int playerIndex, Property board[], int squareIndex, int diceTotal, GameState *game){
 
     Property *property = &board[squareIndex];
     Player *player = &players[playerIndex];
     Player *owner = &players[property->owner];
 
-    int rent = calculateRent(board, squareIndex, diceTotal);
-
+    int rent = calculateRent(players, board, squareIndex, diceTotal, game);
+    
     if(rent <= player->cash){
         player->cash -= rent;
         owner->cash += rent;
@@ -182,9 +210,12 @@ void payRent(Player players[], int playerIndex, Property board[], int squareInde
     }
 }
 
-void payTax(Player *player, Property *taxSquare){
+void payTax(Player players[], int playerIndex, Property *taxSquare, Property board[], GameState *game){
 
-    int taxAmount = taxSquare->taxAmount;
+    Player *player = &players[playerIndex];
+
+    int taxAmount =
+        calculateIncomeTax(players, playerIndex, board, game);
 
     if(player->cash >= taxAmount){
 
@@ -195,9 +226,9 @@ void payTax(Player *player, Property *taxSquare){
                taxSquare->name,
                taxAmount);
 
-        printf("Remaining cash: LKR %d\n", player->cash);
+        printf("Remaining cash: LKR %d\n",
+               player->cash);
     }
-
     else{
 
         int availableCash = player->cash;
@@ -206,19 +237,86 @@ void payTax(Player *player, Property *taxSquare){
         player->cash = 0;
 
         printf("%s could not fully pay %s.\n",
-                player->name,
-                taxSquare->name);
+               player->name,
+               taxSquare->name);
 
-        printf("Paid available cash: LKR %d\n", availableCash);
-        printf("Unpaid amount: LKR %d\n", unpaidAmount);
+        printf("Paid available cash: LKR %d\n",
+               availableCash);
+
+        printf("Unpaid amount: LKR %d\n",
+               unpaidAmount);
+
         printf("Debt recovery not yet implemented.\n");
     }
 }
 
+int calculatePlayerTaxableAssets(Player players[], int playerIndex, Property board[], GameState *game){
+
+    Player *player = &players[playerIndex];
+
+    int totalAssets = player->cash;
+
+    for(int i = 0; i < player->numOwnedProperties; i++){
+
+        int squareIndex = player->ownedProperties[i];
+        Property *property = &board[squareIndex];
+
+        if(property->type == SQUARE_PROPERTY ||
+           property->type == SQUARE_RAILWAY ||
+           property->type == SQUARE_UTILITY){
+
+            totalAssets += calculateCurrentPropertyValue(players, property, game);
+        }
+    }
+
+    return totalAssets;
+}
+
+int calculateCommunityFundTax(Player players[], int playerIndex, Property board[], GameState *game){
+
+    int totalAssets =
+        calculatePlayerTaxableAssets(players, playerIndex, board, game);
+
+    return totalAssets * 10 / 100;
+}
+
+void payCommunityFundTax(Player players[], int playerIndex, Property board[], GameState *game){
+
+    Player *player = &players[playerIndex];
+
+    int tax =
+        calculateCommunityFundTax(players, playerIndex, board, game);
+
+    printf("%s must pay Community Development Fund tax of LKR %d.\n",
+           player->name,
+           tax);
+
+    if(player->cash >= tax){
+
+        player->cash -= tax;
+
+        printf("Tax paid. Remaining cash: LKR %d\n",
+               player->cash);
+    }
+    else{
+
+        int availableCash = player->cash;
+
+        player->cash = 0;
+
+        printf("%s could not fully pay the Community Development Fund tax.\n",
+               player->name);
+
+        printf("Paid available cash: LKR %d\n",
+               availableCash);
+
+        printf("Unpaid amount: LKR %d\n",
+               tax - availableCash);
+    }
+}
 
 
-
-int calculateTotalMortgageValue(Player *player, Property board[]){
+int calculateTotalMortgageValue(Player *player, Property board[], GameState *game){
 
     int totalMortgageValue = 0;
 
@@ -243,22 +341,22 @@ int calculateTotalMortgageValue(Player *player, Property board[]){
             continue;
         }
 
-        totalMortgageValue += property->mortgageValue;
+        totalMortgageValue += calculateCurrentMortgageValue(property, game);
     }
 
     return totalMortgageValue;
 }
 
-int calculateMaximumLoan(Player *player, Property board[]){
+int calculateMaximumLoan(Player *player, Property board[], GameState *game){
 
-    int totalMortgageValue = calculateTotalMortgageValue(player, board);
+    int totalMortgageValue = calculateTotalMortgageValue(player, board, game);
 
     int maximumLoan = totalMortgageValue * 75 / 100;
 
     return maximumLoan;
 }
 
-int lockLoanCollateral(Player *player, Property board[], int loanAmount){
+int lockLoanCollateral(Player *player, Property board[], int loanAmount, GameState *game){
 
     int totalMortgageValue = 0;
 
@@ -290,7 +388,7 @@ int lockLoanCollateral(Player *player, Property board[], int loanAmount){
 
         property->isLoanLocked = 1;
 
-        totalMortgageValue += property->mortgageValue;
+        totalMortgageValue += calculateCurrentMortgageValue(property, game);
 
         int supportedLoan = totalMortgageValue * 75 / 100;
 
@@ -316,7 +414,7 @@ void unlockLoanCollateral(Player *player, Property board[]){
     player->loan.numCollateral = 0;
 }
 
-int createLoan(Player *player, Property board[], int loanAmount, int interestRate){
+int createLoan(Player *player, Property board[], int loanAmount, int interestRate, GameState *game){
 
     if(player->loan.isActive == 1){
 
@@ -330,7 +428,7 @@ int createLoan(Player *player, Property board[], int loanAmount, int interestRat
         return 0;
     }
 
-    int maximumLoan = calculateMaximumLoan(player, board);
+    int maximumLoan = calculateMaximumLoan(player, board, game);
 
     if(loanAmount > maximumLoan){
 
@@ -344,7 +442,7 @@ int createLoan(Player *player, Property board[], int loanAmount, int interestRat
         return 0;
     }
  
-    if(lockLoanCollateral(player, board, loanAmount) == 0){
+    if(lockLoanCollateral(player, board, loanAmount, game) == 0){
 
         unlockLoanCollateral(player, board);
 
@@ -386,10 +484,13 @@ void updateLoanAfterRound(Player *player){
         return;
     }
 
-    int interest = player->loan.amount * player->loan.interestRate / 100;
+    int interestRate =
+        applyNationalCardInterestModifier(player, player->loan.interestRate);
+
+    int interest =
+        player->loan.amount * interestRate / 100;
 
     player->loan.amount += interest;
-
     player->loan.roundsRemaining--;
 
     printf("%s loan interest added: LKR %d\n",
@@ -526,7 +627,7 @@ int extendLoan(Player *player){
     return 1;
 }
 
-int addLoanCollateral(Player *player, Property board[], int requiredLoanAmount){
+int addLoanCollateral(Player *player, Property board[], int requiredLoanAmount, GameState *game){
 
     int totalMortgageValue = 0;
 
@@ -537,7 +638,7 @@ int addLoanCollateral(Player *player, Property board[], int requiredLoanAmount){
 
         int squareIndex = player->loan.collateralIndices[i];
 
-        totalMortgageValue += board[squareIndex].mortgageValue;
+        totalMortgageValue += calculateCurrentMortgageValue(&board[squareIndex], game);
     }
 
     int supportedLoan = totalMortgageValue * 75 / 100;
@@ -573,7 +674,7 @@ int addLoanCollateral(Player *player, Property board[], int requiredLoanAmount){
 
         property->isLoanLocked = 1;
 
-        totalMortgageValue += property->mortgageValue;
+        totalMortgageValue += calculateCurrentMortgageValue(property, game);
 
         supportedLoan = totalMortgageValue * 75 / 100;
 
@@ -597,7 +698,7 @@ int addLoanCollateral(Player *player, Property board[], int requiredLoanAmount){
     return 0;
 }
 
-int increaseLoan(Player *player, Property board[], int additionalAmount){
+int increaseLoan(Player *player, Property board[], int additionalAmount, GameState *game){
 
     if(player->loan.isActive == 0){
 
@@ -613,7 +714,7 @@ int increaseLoan(Player *player, Property board[], int additionalAmount){
 
     int newPrincipalAmount = player->loan.principalAmount + additionalAmount;
 
-    if(addLoanCollateral(player, board, newPrincipalAmount) == 0){
+    if(addLoanCollateral(player, board, newPrincipalAmount, game) == 0){
 
         printf("%s does not have enough collateral to increase the loan.\n",
                player->name);
@@ -659,7 +760,7 @@ static void removeOwnedProperty(Player *player, int squareIndex){
     }
 }
 
-void handleLoanDefault(Player players[], int playerIndex, Property board[], int turnOrder[]){
+void handleLoanDefault(Player players[], int playerIndex, Property board[], int turnOrder[], GameState *game){
 
     Player *player = &players[playerIndex];
 
@@ -747,7 +848,7 @@ void handleLoanDefault(Player players[], int playerIndex, Property board[], int 
         int squareIndex =
             foreclosedProperties[i];
 
-        handleAuction(players, board, squareIndex, turnOrder);
+        handleAuction(players, board, squareIndex, turnOrder, game);
     }
 }   
 
@@ -758,16 +859,19 @@ void handleBank(Player players[], int playerIndex, Property board[], GameState *
     printf("%s landed on Bank of Ceylon.\n",
            player->name);
 
-    printf("Current loan interest rate: %d%%\n",
-           game->currentLoanInterestRate);
+    int currentInterestRate =
+        calculateCurrentLoanInterestRate(game);
 
-    BankAction action = decideBankAction(player);
+    printf("Current loan interest rate: %d%%\n",
+        currentInterestRate);
+
+    BankAction action = decideBankAction(player, board, game);
 
     switch(action){
 
         case BANK_ACTION_TAKE_LOAN:{
 
-            int loanAmount = decideLoanAmount(player, board);
+            int loanAmount = decideLoanAmount(player, board, game);
 
             if(loanAmount <= 0){
 
@@ -777,7 +881,7 @@ void handleBank(Player players[], int playerIndex, Property board[], GameState *
                 break;
             }
 
-            createLoan(player, board, loanAmount, game->currentLoanInterestRate);
+            createLoan(player, board, loanAmount, currentInterestRate, game);
 
             break;
             }
@@ -820,7 +924,8 @@ void handleBank(Player players[], int playerIndex, Property board[], GameState *
             int additionalAmount =
                 decideLoanIncreaseAmount(
                     player,
-                    board
+                    board,
+                    game
                 );
 
             if(additionalAmount <= 0){
@@ -831,11 +936,7 @@ void handleBank(Player players[], int playerIndex, Property board[], GameState *
                 break;
             }
 
-            increaseLoan(
-                player,
-                board,
-                additionalAmount
-            );
+        increaseLoan(player, board, additionalAmount, game);
 
             break;
         }
@@ -879,30 +980,37 @@ int canInsureProperty(Property board[], int playerIndex, int squareIndex, Insura
     return 1;
 }
 
-int calculateInsurancePremium(Property *property, InsurancePolicyType policyType){
+int calculateInsurancePremium(Player players[], Property *property, InsurancePolicyType policyType, GameState *game){
 
     if(property == NULL){
         return 0;
     }
+
+    int propertyValue =
+        calculateCurrentPropertyValue(players, property, game);
 
     int premium = 0;
 
     switch(policyType){
 
         case POLICY_BASIC:
-            premium = property->marketValue * 5 / 100;
+            premium = propertyValue * 5 / 100;
             break;
 
         case POLICY_COMPREHENSIVE:
-            premium = property->marketValue * 10 / 100;
+            premium = propertyValue * 10 / 100;
             break;
 
         case POLICY_BUSINESS_INTERRUPTION:
-            premium = property->marketValue * 15 / 100;
+            premium = propertyValue * 15 / 100;
             break;
 
-        case POLICY_NONE:
+        default:
             return 0;
+    }
+
+    if(game->activeRegulation == REGULATION_INSURANCE){
+        premium = premium * 85 / 100;
     }
 
     return premium;
@@ -927,7 +1035,8 @@ int purchaseInsurance(Player players[], int playerIndex, Property board[], int s
         return 0;
     }
 
-    int premium = calculateInsurancePremium(property, policyType);
+    int premium = calculateInsurancePremium(players, property, policyType, game);
+    premium = applyNationalCardInsuranceModifier(player, premium);
 
     if(player->cash < premium){
 
@@ -977,7 +1086,7 @@ void handleInsurance(Player players[], int playerIndex, Property board[], int in
     }
 
     //to chose the property base on player strategy
-    int propertyIndex = decideInsuranceProperty(player, board);
+    int propertyIndex = decideInsuranceProperty(player, board, game);
 
     if(propertyIndex == -1){
 
@@ -1246,7 +1355,7 @@ int calculateDepreciatedValue(Property *property){
     return property->marketValue * (100 - property->depreciationPercent) / 100;
 }
 
-int canRenovateProperty(Player players[], int playerIndex, Property board[], int squareIndex){
+int canRenovateProperty(Player players[], int playerIndex, Property board[], int squareIndex, GameState *game){
 
     if(squareIndex < 0 || squareIndex >= BOARD_SIZE){
         return 0;
@@ -1266,7 +1375,7 @@ int canRenovateProperty(Player players[], int playerIndex, Property board[], int
         return 0;
     }
 
-    int renovationCost = calculateRenovationCost(property);
+    int renovationCost = calculateRenovationCost(players, property, game);
 
     if(players[playerIndex].cash < renovationCost){
         return 0;
@@ -1275,23 +1384,23 @@ int canRenovateProperty(Player players[], int playerIndex, Property board[], int
     return 1;
 }
 
-int calculateRenovationCost(Property *property){
+int calculateRenovationCost(Player players[], Property *property, GameState *game){
 
-    int currentValue = calculateCurrentPropertyValue(property);
+    int currentValue = calculateCurrentPropertyValue(players, property, game);
 
     return currentValue * 10 / 100;
 }
 
-int renovateProperty(Player players[], int playerIndex, Property board[], int squareIndex){
+int renovateProperty(Player players[], int playerIndex, Property board[], int squareIndex, GameState *game){
 
-    if(canRenovateProperty(players, playerIndex, board, squareIndex) == 0){
+    if(canRenovateProperty(players, playerIndex, board, squareIndex, game) == 0){
         return 0;
     }
 
     Player *player = &players[playerIndex];
     Property *property = &board[squareIndex];
 
-    int renovationCost = calculateRenovationCost(property);
+    int renovationCost = calculateRenovationCost(players, property, game);
     int oldDepreciation = property->depreciationPercent;
 
     player->cash -= renovationCost;
@@ -1609,8 +1718,8 @@ int renovateHotelStructuralDamage(Player *player, Property *property){
     return 1;
 }
 
-//to calculate the property value after applying both age depriciation & structural damage depritiation.
-int calculateCurrentPropertyValue(Property *property){
+//to calculate the property value after applying both age depriciation & structural damage depritiation and apply eventmodifiers
+int calculateCurrentPropertyValue(Player players[], Property *property, GameState *game){
 
     int currentValue = calculateDepreciatedValue(property);
 
@@ -1618,6 +1727,70 @@ int calculateCurrentPropertyValue(Property *property){
         currentValue = currentValue * 85 / 100;
     }
 
+    currentValue = applyEconomicValueModifier(property, currentValue, game);
+    currentValue = applyMarketPropertyValueModifier(property, currentValue, game);
+    currentValue = applyRegionalValueModifier(property, currentValue, game);
+
+    if(property->owner >= 0 && property->owner < NUM_PLAYERS){
+
+        Player *owner = &players[property->owner];
+
+        currentValue = applyNationalCardValueModifier(owner, property, currentValue);
+    }
+
     return currentValue;
 }
 
+
+void triggerRandomDisaster(Player players[], Property board[]){
+
+    int possible[BOARD_SIZE];
+    int count = 0;
+
+    for(int i = 0; i < BOARD_SIZE; i++){
+
+        if(board[i].type == SQUARE_PROPERTY &&
+           board[i].owner != -1 &&
+           (board[i].numHouses > 0 || board[i].hasHotel == 1)){
+
+            possible[count] = i;
+            count++;
+        }
+    }
+
+    if(count == 0){
+
+        printf("No developed property available for a disaster.\n");
+        return;
+    }
+
+    int squareIndex = possible[rand() % count];
+
+    Property *property = &board[squareIndex];
+
+    DisasterType disasters[] = {
+        DISASTER_FIRE,
+        DISASTER_FLOOD,
+        DISASTER_RIOT,
+        DISASTER_BUILDING_COLLAPSE,
+        DISASTER_ELECTRICAL_FAILURE
+    };
+
+    property->damageType = disasters[rand() % 5];
+
+    property->isDamaged = 1;
+
+    property->repairCost = property->marketValue * 20 / 100;
+
+    printf("\n=============================================\n");
+    printf("RANDOM DISASTER\n");
+    printf("=============================================\n");
+
+    printf("%s has been damaged.\n",
+           property->name);
+
+    printf("Repair cost: LKR %d\n",
+           property->repairCost);
+
+    processInsuranceClaim(players, property);
+}

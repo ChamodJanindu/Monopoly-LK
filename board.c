@@ -60,6 +60,8 @@ static void setPropertySquare(Property board[], int index, const char *name, Pro
     board[index].damageType = DISASTER_NONE;
     board[index].repairCost = 0;
 
+    board[index].developmentDeadlineRound = -1;
+
     board[index].insurance.isActive = 0;
     board[index].insurance.policyType = POLICY_NONE;
     board[index].insurance.provider = INSURANCE_PROVIDER_NONE;
@@ -96,11 +98,16 @@ static void setTaxSquare(Property board[], int index, const char *name, int taxA
 
 void initBoard(Property board[]){
 
-     memset(board, 0, sizeof(Property) * BOARD_SIZE);
+    memset(board, 0, sizeof(Property) * BOARD_SIZE);
+
+    //memset initialized everyhting to 0 but owner needs to be initailized to -1 for all squares
+    for(int i = 0; i < BOARD_SIZE; i++){
+        board[i].owner = -1;
+    }
 
     setSpecialSquare(board, 0, "GO", SQUARE_START);
     setPropertySquare(board, 1, "Pettah", GROUP_BROWN, 1500, 750, 100, 500, 2000);
-    setSpecialSquare(board, 2, "Community Development", SQUARE_EVENT);
+    setSpecialSquare(board,2,"Community Development Fund",SQUARE_COMMUNITY_FUND);
     setPropertySquare(board, 3, "Maradhana", GROUP_BROWN, 1800, 750, 120, 500, 2000);
     setTaxSquare(board, 4, "Income Tax", 200); 
     setRailwaySquare(board, 5, "Colombo Fort Railway Station");
